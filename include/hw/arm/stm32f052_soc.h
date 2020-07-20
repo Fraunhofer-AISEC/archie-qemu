@@ -33,7 +33,7 @@
 //#include "hw/ssi/stm32f2xx_spi.h"
 #include "hw/arm/armv7m.h"
 
-#define TYPE_STM32F_SOC "stm32f052-soc"
+#define TYPE_STM32F052_SOC "stm32f052-soc"
 #define STM32F052_SOC(obj) \
     OBJECT_CHECK(STM32F052State, (obj), TYPE_STM32F052_SOC)
 

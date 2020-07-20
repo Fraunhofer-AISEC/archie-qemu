@@ -30,6 +30,7 @@
 #include "hw/arm/stm32f052_soc.h"
 #include "hw/qdev-properties.h"
 #include "sysemu/sysemu.h"
+#include "hw/misc/unimp.h"
 
 /* At the moment only Timer 2 to 5 are modelled */
 /*static const uint32_t timer_addr[STM_NUM_TIMERS] = { 0x40000000, 0x40000400,
@@ -49,11 +50,11 @@ static const int spi_irq[STM_NUM_SPIS] = {35, 36, 51};
 static void stm32f052_soc_initfn(Object *obj)
 {
     STM32F052State *s = STM32F052_SOC(obj);
-    int i;
+//    int i;
 
     object_initialize_child(obj, "armv7m", &s->armv7m, TYPE_ARMV7M);
 
-    object_initialize_child(obj, "syscfg", &s->syscfg, TYPE_STM32F2XX_SYSCFG);
+//    object_initialize_child(obj, "syscfg", &s->syscfg, TYPE_STM32F2XX_SYSCFG);
 
   /*  for (i = 0; i < STM_NUM_USARTS; i++) {
         object_initialize_child(obj, "usart[*]", &s->usart[i],
@@ -79,9 +80,10 @@ static void stm32f052_soc_initfn(Object *obj)
 static void stm32f052_soc_realize(DeviceState *dev_soc, Error **errp)
 {
     STM32F052State *s = STM32F052_SOC(dev_soc);
-    DeviceState *dev, *armv7m;
-    SysBusDevice *busdev;
-    int i;
+    DeviceState *armv7m; 
+//   DeviceState *dev, *armv7m;
+//    SysBusDevice *busdev;
+//    int i;
 
     MemoryRegion *system_memory = get_system_memory();
     MemoryRegion *sram = g_new(MemoryRegion, 1);

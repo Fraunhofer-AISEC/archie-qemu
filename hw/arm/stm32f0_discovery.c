@@ -27,14 +27,14 @@
 #include "hw/boards.h"
 #include "hw/qdev-properties.h"
 #include "qemu/error-report.h"
-#include "hw/arm/stm32f205_soc.h"
+#include "hw/arm/stm32f052_soc.h"
 #include "hw/arm/boot.h"
 
 static void stm32f0discovery_init(MachineState *machine)
 {
     DeviceState *dev;
 
-    dev = qdev_new(TYPE_STM32F205_SOC);
+    dev = qdev_new(TYPE_STM32F052_SOC);
     qdev_prop_set_string(dev, "cpu-type", ARM_CPU_TYPE_NAME("cortex-m0"));
     sysbus_realize_and_unref(SYS_BUS_DEVICE(dev), &error_fatal);
 
