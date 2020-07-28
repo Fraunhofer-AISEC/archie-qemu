@@ -30,9 +30,21 @@
 #include "hw/arm/stm32f052_soc.h"
 #include "hw/arm/boot.h"
 
+/* Main SYSCLK frequency in HZ (4 - 32 MHZ)*/
+#define SYSCLK_FRQ 32000000ULL
+
 static void stm32f0discovery_init(MachineState *machine)
 {
     DeviceState *dev;
+
+
+    /*
+     * TODO: ideally we would model the SoC RCC and let it handle
+     * system_clock_scale, including its ability to define different
+     * possible SYSCLK sources.
+     */
+    system_clock_scale = NANOSECONDS_PER_SECOND / SYSCLK_FRQ;
+
 
     dev = qdev_new(TYPE_STM32F052_SOC);
     qdev_prop_set_string(dev, "cpu-type", ARM_CPU_TYPE_NAME("cortex-m0"));
