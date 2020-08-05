@@ -30,6 +30,7 @@ CFLAGS = $(GLIB_CFLAGS)
 CFLAGS += -fPIC
 CFLAGS += $(if $(findstring no-psabi,$(QEMU_CFLAGS)),-Wpsabi)
 CFLAGS += -I$(SRC_PATH)/include
+#CFLAGS += -I$(SRC_PATH)/include/hw/core
 CFLAGS += -I$(BUILD_DIR)
 all: $(SONAMES)
 

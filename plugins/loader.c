@@ -361,6 +361,21 @@ static void plugin_flush_destroy(CPUState *cpu, run_on_cpu_data arg)
     plugin_reset_destroy(data);
 }
 
+void plugin_async_flush_tb(CPUState *cpu, run_on_cpu_data arg);
+void plugin_async_flush_tb(CPUState *cpu, run_on_cpu_data arg)
+{
+	g_assert(cpu_in_exclusive_context(cpu));
+	tb_flush(cpu);
+}
+
+
+void plugin_flush_tb(void)
+{
+//	g_assert(cpu_in_exclusive_context(current_cpu));
+	async_safe_run_on_cpu(current_cpu, plugin_async_flush_tb, RUN_ON_CPU_NULL);
+//	tb_flush(current_cpu);
+}
+
 void plugin_reset_uninstall(qemu_plugin_id_t id,
                             qemu_plugin_simple_cb_t cb,
                             bool reset)
