@@ -181,6 +181,10 @@ void qemu_plugin_vcpu_mem_cb(CPUState *cpu, uint64_t vaddr, uint32_t meminfo);
 
 void qemu_plugin_flush_cb(void);
 
+uint32_t read_arm_reg(int reg);
+
+void write_arm_reg(int reg, uint32_t val);
+
 void qemu_plugin_atexit_cb(void);
 
 void qemu_plugin_add_dyn_cb_arr(GArray *arr);

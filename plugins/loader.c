@@ -376,6 +376,33 @@ void plugin_flush_tb(void)
 //	tb_flush(current_cpu);
 }
 
+uint32_t read_arm_reg(int reg)
+{
+	GByteArray *val = g_byte_array_new();
+	uint8_t byte_reg[4];
+	uint32_t reg_ret = 0;
+	if (arm_cpu_gdb_read_register(current_cpu, val, reg) == 4)
+	{
+		/* Read out of GbyteArray and build up 32 bit number. Already swapped by request*/
+		byte_reg[0] = val->data[0];
+		byte_reg[1] = val->data[1];
+		byte_reg[2] = val->data[2];
+		byte_reg[3] = val->data[3];
+		reg_ret |= (byte_reg[0] << 0*8);
+		reg_ret |= (byte_reg[1] << 1*8);
+		reg_ret |= (byte_reg[2] << 2*8);
+		reg_ret |= (byte_reg[3] << 3*8);
+	}
+	return reg_ret;
+
+}
+
+void write_arm_reg(int reg, uint32_t val)
+{
+
+	arm_cpu_gdb_write_register(current_cpu, (uint8_t *) &val, reg);
+}
+
 void plugin_reset_uninstall(qemu_plugin_id_t id,
                             qemu_plugin_simple_cb_t cb,
                             bool reset)
