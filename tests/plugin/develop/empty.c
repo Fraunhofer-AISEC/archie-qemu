@@ -42,6 +42,10 @@ static void tb_exec_cb(unsigned int vcpu_index, void *userdata)
 	qemu_plugin_outs(out->str);
 }
 
+/*
+ * CB for memaccess. Also the method to change the memory.
+ * Note that this method must be done at n-1
+ */
 static void vcpu_memaccess(unsigned int vcpu_index, qemu_plugin_meminfo_t info, uint64_t vaddr, void *userdata)
 {
 	g_autoptr(GString) out = g_string_new("");
@@ -50,17 +54,24 @@ static void vcpu_memaccess(unsigned int vcpu_index, qemu_plugin_meminfo_t info, 
 	//	qemu_plugin_hwaddr *hwaddr = qemu_plugin_get_hwaddr(info, vaddr);
 	g_string_append_printf(out, " Is store: %i\n Offset: %08lx\n", qemu_plugin_mem_is_store(info),qemu_plugin_hwaddr_device_offset(qemu_plugin_get_hwaddr(info, vaddr)));
 	//	g_string_append_printf(out, " reg[0]: %08x\n", read_arm_reg(0));
-	if(vaddr == 0x80000f8)
+	if(vaddr == 0x80000f4)
 	{
 		char tmp[4];
 		cpu_memory_rw_debug(current_cpu, vaddr, tmp, 4, 0);
+		g_string_append_printf(out, "Original value: %08x\n", (tmp[0]<< 0*8)|(tmp[1]<< 1*8)|(tmp[2]<< 2*8)|(tmp[3]<< 3*8));
 		tmp[0]++;
+		//tmp[1]++;
+		//tmp[2]++;
+		//tmp[3]++;
 		cpu_memory_rw_debug(current_cpu, vaddr, tmp, 4, 1);
 		g_string_append_printf(out, " reg[0]: %08x\n", read_arm_reg(0));
+		g_string_append(out, "The memmory location 0x80000f4 was changed\n");
+		//plugin_flush_tb();
 	}
 
 	qemu_plugin_outs(out->str);
 }
+// Calback for instructin exec
 void insn_exec_cb(unsigned int vcpu_index, void *userdata)
 {
 	g_autoptr(GString) out = g_string_new("");
@@ -155,7 +166,15 @@ static void vcpu_init_cb(qemu_plugin_id_t id, unsigned int vcpu_index)
 		qemu_plugin_outs(out->str);
 		cpu_memory_rw_debug(cpu, 0x80000dc, tmp, 2, 1);*/
 }
-
+/*
+ * CPU exit function is somhow never called ...
+ */
+static void vcpu_exit_cb(qemu_plugin_id_t id, unsigned int vcpu_index)
+{
+	g_autoptr(GString) out = g_string_new("");
+	g_string_printf(out, "CPU exited\n");
+	qemu_plugin_outs(out->str);
+}
 QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 		const qemu_info_t *info,
 		int argc, char **argv)
@@ -170,9 +189,10 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 		qemu_plugin_outs(out->str);
 		return -1;
 	}
-	qemu_plugin_outs(out->str);
 	qemu_plugin_register_vcpu_tb_trans_cb(id, vcpu_tb_trans);
 	qemu_plugin_register_vcpu_init_cb( id,  vcpu_init_cb);
+	qemu_plugin_register_vcpu_exit_cb( id, vcpu_exit_cb); 
 	flag = 0;
+	qemu_plugin_outs(out->str);
 	return 0;
 }
