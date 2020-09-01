@@ -65,7 +65,7 @@ static void vcpu_memaccess(unsigned int vcpu_index, qemu_plugin_meminfo_t info, 
 		//tmp[3]++;
 		cpu_memory_rw_debug(current_cpu, vaddr, tmp, 4, 1);
 		g_string_append_printf(out, " reg[0]: %08x\n", read_arm_reg(0));
-		g_string_append(out, "The memmory location 0x80000f4 was changed\n");
+		g_string_append_printf(out, "The memmory location 0x%08lx was changed\n", vaddr);
 		//plugin_flush_tb();
 	}
 
