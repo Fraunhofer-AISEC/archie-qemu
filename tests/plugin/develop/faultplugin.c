@@ -41,17 +41,17 @@ typedef struct
 
 typedef struct
 {
-	int address;
-	int hitcounter;
+	int address; //uint64_t?
+	unsigned int hitcounter;
 } fault_trigger_t;
 
 typedef struct
 {
-	int address;
-	int type;
+	int address; //uint64_t?
+	int type; //Typedef enum?
 	int model;
-	int lifetime;
-	long long mask;
+	unsigned int lifetime;
+	long long mask; // uint8_t array?
 	fault_trigger_t trigger;
 } fault_t;
 
