@@ -67,11 +67,17 @@ typedef struct fault_list_t
 } fault_list_t;
 
 
+/* Global data structures */
+
 fifos_t * pipes;
 
 fault_list_t *first_fault;
 
-/*QEMU plugin install*/
+uint64_t *	fault_trigger_addresses;
+int	fault_number;
+int 	first_tb;
+
+/*QEMU plugin Version control*/
 
 QEMU_PLUGIN_EXPORT int qemu_plugin_version = QEMU_PLUGIN_VERSION;
 
@@ -228,7 +234,7 @@ int qemu_setup_config()
 	}
 	g_string_append(out, "Fault pipe read done\n");
 	qemu_plugin_outs(out->str);
-	add_fault(fault_address, fault_type, fault_model, fault_lifetime, fault_mask, fault_trigger_address, fault_trigger_hitcounter);
+	return add_fault(fault_address, fault_type, fault_model, fault_lifetime, fault_mask, fault_trigger_address, fault_trigger_hitcounter);
 }
 
 
@@ -281,18 +287,37 @@ void delete_fault_queue()
 	}
 }
 
-inline fault_list_t * return_next(fault_list_t * current)
+/**
+ * return_next
+ *
+ * function to return next pointer.
+ * This is to be able to change the current link list if desired
+ */
+ fault_list_t * return_next(fault_list_t * current)
 {
 	return current->next;
 }
 
-inline uint64_t get_fault_address(fault_list_t * current)
+/**
+ * get_fault_trigger_address
+ *
+ * function to return the fault address. 
+ * This is to be able to change the current data structure if needed
+ */
+ uint64_t get_fault_trigger_address(fault_list_t * current)
 {
 	return current->fault.trigger.address;
 }
 
-int register_fault_addresses()
+/**
+ * register_fault_address
+ *
+ * This function will fill the global fault trigger address array
+ */
+int register_fault_trigger_addresses()
 {
+	g_autoptr(GString) out = g_string_new("");
+	g_string_printf(out, "Calculate number of faults\n");
 	fault_list_t * current = first_fault;
 	int i = 0;
 	while(current != NULL)
@@ -300,22 +325,108 @@ int register_fault_addresses()
 		i++;
 		current = return_next(current);
 	}
+	g_string_append_printf(out, "number_of_faults %i\n",i);
+	if(i == 0)
+	{
+		g_string_append(out, "No fault found!\n");
+		qemu_plugin_outs(out->str);
+		return -1;
+	}
+	current = first_fault;
+	fault_number = i;
+	g_string_append_printf(out, "Fault number %i\n", fault_number);
+	fault_trigger_addresses = malloc(sizeof(uint64_t) * fault_number);
+	g_string_append(out, "Start registering faults\n");
+	g_string_append_printf(out, "fault trigger addresses: %p\n", fault_trigger_addresses);
+	qemu_plugin_outs(out->str);
+	for(int j = 0; j < i; j++)
+	{
+		*(fault_trigger_addresses + j) = get_fault_trigger_address(current);  
+		current = return_next(current);	
+	}
+	return 0;	
+}
+
+void delete_fault_trigger_addresses()
+{
+	free(fault_trigger_addresses);
+}
+
+void process_set0_memory(uint64_t address, uint8_t  mask[])
+{
+	uint8_t value[16];
+	CPUState *cpu = current_cpu;
+	int ret;
+	ret = cpu_memory_rw_debug( cpu, address, value, 16, 0);
+	for(int i = 0; i < 16; i++)
+	{
+		value[i] = value[i] | mask[i];
+	}
+}
+
+void handle_first_tb_fault_insertion()
+{
+	
+	g_autoptr(GString) out = g_string_new("");
+	g_string_printf(out, "First Insertion point!\n");
+	fault_list_t * current = first_fault;
+	char memory_dump[16];
+	while(current != NULL)
+	{
+		if(current->fault.trigger.hitcounter == 0 && current->fault.type == FLASH )
+		{
+			switch(current->fault.model)
+			{
+				case SET0:
+					break;
+				case SET1:
+					break;
+				case TOGGLE:
+					break;
+				default:
+					break;
+			}
+		}
+
+	}
 }
 
 static void vcpu_translateblock_translation_event(qemu_plugin_id_t id, struct qemu_plugin_tb *tb)
 {
 	g_autoptr(GString) out = g_string_new("");
 	g_string_printf(out, "\n");
+
+	g_string_append_printf(out, "Virt1 value: %8lx", tb->vaddr);
+	
+	if(first_tb != 0)
+	{
+
+	}
+	else
+	{
+		g_string_append_printf(out, "This is the first time the tb is translated\n");
+		first_tb = 1;
+	}
+
 	
 }
 
-
+/**
+ *
+ * qemu_plugin_install
+ *
+ * This is the first called function. 
+ *
+ */
 QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id, 
 					const qemu_info_t *info,
 					int argc, char **argv)
 {
 	pipes = NULL;
 	first_fault = NULL;
+	fault_number = 0;
+	fault_trigger_addresses = NULL;
+	first_tb = 0;
 	g_autoptr(GString) out = g_string_new("");
 	g_string_printf(out, "QEMU INjection Plugin\n Current Target is %s\n", info->target_name);
 	g_string_append_printf(out, "Current Version of QEMU Plugin is %i, Min Version is %i\n", info->version.cur, info->version.min);
@@ -337,9 +448,30 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 		return -1;
 	}
 	g_string_append_printf(out, "Initialisation of FIFO Succeded!\n");
+	g_string_append_printf(out, "Readout config FIFO\n");
 	qemu_plugin_outs(out->str);
-	qemu_setup_config();
-	g_string_printf(out, "Reached end of Initialisation, aborting now\n");
+	g_string_printf(out, " ");
+	if( qemu_setup_config() < 0)
+	{
+		goto ABBORT;
+	}
+	g_string_append_printf(out, "Linked list entry address: %p\n", first_fault);	
+
+	g_string_append_printf(out, "Register fault trigger addresses\n");
+	qemu_plugin_outs(out->str);
+	g_string_printf(out, " ");
+	if(register_fault_trigger_addresses() < 0 )
+	{
+		goto ABBORT;
+	}
+	g_string_append_printf(out, "Number of triggers: %i\n", fault_number);
+	g_string_append_printf(out, "Reached end of Initialisation, aborting now\n");
+	qemu_plugin_outs(out->str);
+	return -1;
+ABBORT:
+	delete_fault_trigger_addresses();
+	delete_fault_queue();
+	g_string_append(out, "Somthing went wrong. Abborting now!\n");
 	qemu_plugin_outs(out->str);
 	return -1;
 }
