@@ -347,11 +347,19 @@ int register_fault_trigger_addresses()
 	return 0;	
 }
 
+/**
+ * delete_fault_trigger_address
+ */
 void delete_fault_trigger_addresses()
 {
 	free(fault_trigger_addresses);
 }
 
+/**
+ * process_set1_memory
+ *
+ * Read memory, then apply set1 according to mask, then write memory back
+ */
 void process_set1_memory(uint64_t address, uint8_t  mask[])
 {
 	uint8_t value[16];
@@ -365,6 +373,11 @@ void process_set1_memory(uint64_t address, uint8_t  mask[])
 	ret = cpu_memory_rw_debug( cpu, address, value, 16, 1);
 }
 
+/**
+ * process_set0_memory
+ *
+ * Read memory, then apply set0 according to mask, then write memory back
+ */
 void process_set0_memory(uint64_t address, uint8_t  mask[])
 {
 	uint8_t value[16];
@@ -378,6 +391,11 @@ void process_set0_memory(uint64_t address, uint8_t  mask[])
 	ret = cpu_memory_rw_debug( cpu, address, value, 16, 1);
 }
 
+/**
+ * process_toggle_memory
+ *
+ * Read memory, then toggle bits to mask, then write memory back
+ */
 void process_toggle_memory(uint64_t address, uint8_t  mask[])
 {
 	uint8_t value[16];
@@ -391,6 +409,11 @@ void process_toggle_memory(uint64_t address, uint8_t  mask[])
 	ret = cpu_memory_rw_debug( cpu, address, value, 16, 1);
 }
 
+/**
+ * handle_first_tb_fault_insertion
+ *
+ * This function is called in the first used tb block
+ */
 void handle_first_tb_fault_insertion()
 {
 	
@@ -420,6 +443,11 @@ void handle_first_tb_fault_insertion()
 	}
 }
 
+/**
+ * vcpu_translateblock_translation_event
+ *
+ * main entry point for tb translation event
+ */
 static void vcpu_translateblock_translation_event(qemu_plugin_id_t id, struct qemu_plugin_tb *tb)
 {
 	g_autoptr(GString) out = g_string_new("");
