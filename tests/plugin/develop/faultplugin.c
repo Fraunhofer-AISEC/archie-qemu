@@ -352,7 +352,7 @@ void delete_fault_trigger_addresses()
 	free(fault_trigger_addresses);
 }
 
-void process_set0_memory(uint64_t address, uint8_t  mask[])
+void process_set1_memory(uint64_t address, uint8_t  mask[])
 {
 	uint8_t value[16];
 	CPUState *cpu = current_cpu;
@@ -362,6 +362,33 @@ void process_set0_memory(uint64_t address, uint8_t  mask[])
 	{
 		value[i] = value[i] | mask[i];
 	}
+	ret = cpu_memory_rw_debug( cpu, address, value, 16, 1);
+}
+
+void process_set0_memory(uint64_t address, uint8_t  mask[])
+{
+	uint8_t value[16];
+	CPUState *cpu = current_cpu;
+	int ret;
+	ret = cpu_memory_rw_debug( cpu, address, value, 16, 0);
+	for(int i = 0; i < 16; i++)
+	{
+		value[i] = value[i] & ~(mask[i]);
+	}
+	ret = cpu_memory_rw_debug( cpu, address, value, 16, 1);
+}
+
+void process_toggle_memory(uint64_t address, uint8_t  mask[])
+{
+	uint8_t value[16];
+	CPUState *cpu = current_cpu;
+	int ret;
+	ret = cpu_memory_rw_debug( cpu, address, value, 16, 0);
+	for(int i = 0; i < 16; i++)
+	{
+		value[i] = value[i] ^ mask[i];
+	}
+	ret = cpu_memory_rw_debug( cpu, address, value, 16, 1);
 }
 
 void handle_first_tb_fault_insertion()
@@ -370,7 +397,6 @@ void handle_first_tb_fault_insertion()
 	g_autoptr(GString) out = g_string_new("");
 	g_string_printf(out, "First Insertion point!\n");
 	fault_list_t * current = first_fault;
-	char memory_dump[16];
 	while(current != NULL)
 	{
 		if(current->fault.trigger.hitcounter == 0 && current->fault.type == FLASH )
@@ -378,10 +404,13 @@ void handle_first_tb_fault_insertion()
 			switch(current->fault.model)
 			{
 				case SET0:
+					process_set0_memory(current->fault.address, current->fault.mask);
 					break;
 				case SET1:
+					process_set1_memory(current->fault.address, current->fault.mask);
 					break;
 				case TOGGLE:
+					process_toggle_memory(current->fault.address, current->fault.mask);
 					break;
 				default:
 					break;
