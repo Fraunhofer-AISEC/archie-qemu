@@ -76,6 +76,7 @@ fault_list_t *first_fault;
 uint64_t *	fault_trigger_addresses;
 uint64_t *	fault_addresses;
 int	fault_number;
+int	exec_callback;
 int 	first_tb;
 
 /*QEMU plugin Version control*/
@@ -362,8 +363,6 @@ int register_fault_trigger_addresses()
 		return -1;
 	}
 	g_string_append(out, "Start registering faults\n");
-	g_string_append_printf(out, "fault trigger addresses: %p\n", fault_trigger_addresses);
-	g_string_append_printf(out, "fault addresses: %p\n", fault_addresses);
 	for(int j = 0; j < i; j++)
 	{
 		/* Fill Vector with value*/
@@ -438,8 +437,31 @@ void process_toggle_memory(uint64_t address, uint8_t  mask[])
 	}
 	ret = cpu_memory_rw_debug( cpu, address, value, 16, 1);
 }
+
+/**
+ * register_exec_callback
+ *
+ * This function is called, when the exec callback is needed.
+ */
+void register_exec_callback(uint64_t address)
+{
+	if(exec_callback == fault_number )
+	{
+		qemu_plugin_outs("ERROR: Reached max exec callbacks. Something went totaly wrong!\n");
+		return;
+	}
+	*(fault_addresses + exec_callback) = address;
+	exec_callback++;
+}
+
+/**
+ * inject_fault
+ *
+ * At this point the fault need to be injected. This is the function to select the right model and call injection function
+ */
 void inject_fault(fault_list_t * current)
 {
+	g_autoptr(GString) out = g_string_new("");
 	if( current != NULL)
 	{
 		if(current->fault.type = FLASH)
@@ -447,10 +469,22 @@ void inject_fault(fault_list_t * current)
 			switch(current->fault.model)
 			{
 				case SET0:
+					g_string_append_printf(out, "Set 0 fault to Address %lx\n", current->fault.address);
+					process_set0_memory(current->fault.address, current->fault.mask);
+					break;
+				case SET1:
+					g_string_append_printf(out, "Set 1 fault to Address %lx\n", current->fault.address);
+					process_set1_memory(current->fault.address, current->fault.mask);
+					break;
+				case TOGGLE:
+					g_string_append_printf(out, "Toggle fault to Address %lx\n", current->fault.address);
+					process_toggle_memory(current->fault.address, current->fault.mask);
 					break;
 				default:
 					break;
 			}
+			qemu_plugin_outs(out->str);
+			register_exec_callback(current->fault.address);
 		}
 	}
 }
@@ -473,23 +507,13 @@ void handle_first_tb_fault_insertion()
 	{
 		if(current->fault.trigger.hitcounter == 0 && current->fault.type == FLASH )
 		{
-			switch(current->fault.model)
+			inject_fault(current);
+			for(int i = 0; i < fault_number; i++)
 			{
-				case SET0:
-					g_string_append_printf(out, "Set 0 fault to Address %lx\n", current->fault.address);
-					process_set0_memory(current->fault.address, current->fault.mask);
-					break;
-				case SET1:
-					g_string_append_printf(out, "Set 1 fault to Address %lx\n", current->fault.address);
-					process_set1_memory(current->fault.address, current->fault.mask);
-					break;
-				case TOGGLE:
-					g_string_append_printf(out, "Set toggle fault to Address %lx\n", current->fault.address);
-					qemu_plugin_outs(out->str);
-					process_toggle_memory(current->fault.address, current->fault.mask);
-					break;
-				default:
-					break;
+				if(*(fault_trigger_addresses + i) == current->fault.trigger.address)
+				{
+					*(fault_trigger_addresses + i) = 0; //Remove trigger from vector
+				}
 			}
 		}
 		current = return_next( current);
@@ -510,6 +534,12 @@ size_t calculate_bytesize_instructions(struct qemu_plugin_tb *tb)
 	return (size_t) (tb->n * 2);
 }
 
+/**
+ *  evaluate_trigger
+ *
+ *  This function takes the trigger address number and evaluates the trigger condition
+ */
+
 void evaluate_trigger(int trigger_address_number)
 {
 
@@ -522,9 +552,16 @@ void evaluate_trigger(int trigger_address_number)
 		/* Remove trigger condition from internal struct*/
 		*(fault_trigger_addresses + trigger_address_number) = 0;
 
+
 	}
 }
 
+/**
+ * handle_tb_translate_event
+ *
+ * This function takes the tb struct and triggers the needed evaluation functions
+ *
+ */
 void handle_tb_translate_event(struct qemu_plugin_tb *tb)
 {
 	fault_list_t * current = first_fault;
@@ -583,6 +620,7 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 	fault_number = 0;
 	fault_trigger_addresses = NULL;
 	fault_addresses = NULL;
+	exec_callback = 0;
 	first_tb = 0;
 	g_autoptr(GString) out = g_string_new("");
 	g_string_printf(out, "QEMU INjection Plugin\n Current Target is %s\n", info->target_name);
@@ -627,7 +665,7 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 	}
 	g_string_append_printf(out, "Number of triggers: %i\n", fault_number);
 	g_string_append(out, "Register VCPU tb trans callback\n");
-	//qemu_plugin_register_vcpu_tb_trans_cb( id, vcpu_translateblock_translation_event);
+	qemu_plugin_register_vcpu_tb_trans_cb( id, vcpu_translateblock_translation_event);
 
 	g_string_append_printf(out, "Reached end of Initialisation, starting guest now\n");
 	qemu_plugin_outs(out->str);
