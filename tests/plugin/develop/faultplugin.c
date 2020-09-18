@@ -107,38 +107,12 @@ int parse_args(int argc, char **argv, GString *out)
 		g_string_append_printf(out, "Not the right ammount of arguments! %i\n", argc);
 		return -1;
 	}
-	for(int i = 0; i < argc; i++)
-	{
-		int j = 0;
-		char *s = NULL;
-		/*Find end of String of file descriptor*/
-		while( *(*(argv+i)+j) != 0 )
-		{
-			j++;
-		}
-		/*Copy string of fifo*/
-		s = malloc(sizeof(char) * j);
-		for(int k = 0; k <= j; k++)
-		{
-			*(s + k) = *(*(argv+i) + k);
-		}
-		g_string_append_printf(out, "FIFO %i path is %s\n", i, s);
-		g_string_append_printf(out, "Open %s\n", s);
-		switch(i)
-		{
-			case 0:
-				pipes->control = open(s, FIFO_READ);
-				break;
-			case 1:
-				pipes->config = open(s, FIFO_READ);
-				break;
-			case 2:
-				pipes->data = open(s, FIFO_WRITE);
-		}
-		g_string_append_printf(out, "done\n");
-		/*free string*/
-		free(s);
-	}
+	g_string_append_printf(out, "Start readout of control fifo %s\n", *(argv+0));
+	pipes->control = open(*(argv+0), FIFO_READ);
+	g_string_append_printf(out, "Start readout of config fifo %s\n", *(argv+1));
+	pipes->config = open(*(argv+1), FIFO_READ);
+	g_string_append_printf(out, "Start readout of data fifo %s\n", *(argv+2));
+	pipes->data = open(*(argv+2), FIFO_WRITE);
 	return 0;
 }
 
@@ -511,7 +485,7 @@ void handle_first_tb_fault_insertion()
 					break;
 				case TOGGLE:
 					g_string_append_printf(out, "Set toggle fault to Address %lx\n", current->fault.address);
-	qemu_plugin_outs(out->str);
+					qemu_plugin_outs(out->str);
 					process_toggle_memory(current->fault.address, current->fault.mask);
 					break;
 				default:
@@ -538,7 +512,7 @@ size_t calculate_bytesize_instructions(struct qemu_plugin_tb *tb)
 
 void evaluate_trigger(int trigger_address_number)
 {
-	
+
 	/*Get fault description*/
 	fault_list_t *current = get_fault_struct_by_trigger((uint64_t) *(fault_trigger_addresses + trigger_address_number));
 	current->fault.trigger.hitcounter = current->fault.trigger.hitcounter - 1;
@@ -547,7 +521,7 @@ void evaluate_trigger(int trigger_address_number)
 		/* Trigger met. Start injection */
 		/* Remove trigger condition from internal struct*/
 		*(fault_trigger_addresses + trigger_address_number) = 0;
-		
+
 	}
 }
 
@@ -580,7 +554,7 @@ static void vcpu_translateblock_translation_event(qemu_plugin_id_t id, struct qe
 	qemu_plugin_outs(out->str);	
 	if(first_tb != 0)
 	{
-			g_string_append_printf(out, "So we do Stuff here\n\n");
+		g_string_append_printf(out, "So we do Stuff here\n\n");
 	}
 	else
 	{
@@ -649,7 +623,7 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 	g_string_printf(out, " ");
 	if(register_fault_trigger_addresses() < 0 )
 	{
-		goto ABBORT;
+	    goto ABBORT;
 	}
 	g_string_append_printf(out, "Number of triggers: %i\n", fault_number);
 	g_string_append(out, "Register VCPU tb trans callback\n");
