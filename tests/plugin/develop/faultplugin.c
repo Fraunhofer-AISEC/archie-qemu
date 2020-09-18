@@ -74,6 +74,7 @@ fifos_t * pipes;
 fault_list_t *first_fault;
 
 uint64_t *	fault_trigger_addresses;
+uint64_t *	fault_addresses;
 int	fault_number;
 int 	first_tb;
 
@@ -141,6 +142,25 @@ int parse_args(int argc, char **argv, GString *out)
 	return 0;
 }
 
+
+uint64_t char_to_uint64(char *c, int size_c)
+{
+	g_autoptr(GString) out = g_string_new("");
+	uint64_t tmp = 0;
+	int i = 0;
+	g_string_printf(out, "This is the conversion function: ");
+	for(i = 0; i < size_c; i++)
+	{
+		g_string_append_printf(out, " 0x%x",(char) *(c + i));
+		tmp = tmp << 8;
+		tmp += 0xff & (char) *(c + i);
+	}
+	g_string_append(out, "\n");
+	qemu_plugin_outs(out->str);
+	return tmp;
+}
+
+
 /**
  *
  * qemu_setup_config
@@ -159,8 +179,9 @@ int qemu_setup_config()
 	uint8_t fault_mask[16];
 	uint64_t fault_trigger_address = 0;
 	uint64_t fault_trigger_hitcounter = 0;
-	char buf[16];
+	uint8_t buf[16];
 	uint64_t target_len = 8;
+	uint64_t tmp = 0xffffffffffffffff;
 	g_string_printf(out, "Start redout of FIFO\n");
 	for(int i = 0; i < 7; i++)
 	{
@@ -190,22 +211,22 @@ int qemu_setup_config()
 		switch(i)
 		{
 			case 0:
-				fault_address = (uint64_t) buf[7] << 7*8 | (uint64_t) buf[6] << 6*8 | (uint64_t) buf[5] << 5*8 | (uint64_t) buf[4] << 4*8 |buf[3] << 3*8 | buf[2] << 2*8 | buf[1] << 1*8 | buf[0] << 0*8;
+				fault_address = char_to_uint64(buf, 8);
 				target_len = 8;
 				g_string_append_printf(out, "fault address: 0x%lx\n", fault_address);
 				break;
 			case 1:
-				fault_type = (uint64_t) buf[7] << 7*8 | (uint64_t) buf[6] << 6*8 | (uint64_t) buf[5] << 5*8 | (uint64_t) buf[4] << 4*8 |buf[3] << 3*8 | buf[2] << 2*8 | buf[1] << 1*8 | buf[0] << 0*8;
+				fault_type = char_to_uint64(buf, 8);
 				target_len = 8;
 				g_string_append_printf(out, "fault address: 0x%lx\n", fault_type);
 				break;
 			case 2:
-				fault_model = (uint64_t) buf[7] << 7*8 | (uint64_t) buf[6] << 6*8 | (uint64_t) buf[5] << 5*8 | (uint64_t) buf[4] << 4*8 |buf[3] << 3*8 | buf[2] << 2*8 | buf[1] << 1*8 | buf[0] << 0*8;
+				fault_model = char_to_uint64(buf, target_len);
 				target_len = 8;
 				g_string_append_printf(out, "fault address: 0x%lx\n", fault_model);
 				break;
 			case 3:
-				fault_lifetime = (uint64_t) buf[7] << 7*8 | (uint64_t) buf[6] << 6*8 | (uint64_t) buf[5] << 5*8 | (uint64_t) buf[4] << 4*8 |buf[3] << 3*8 | buf[2] << 2*8 | buf[1] << 1*8 | buf[0] << 0*8;
+				fault_lifetime = char_to_uint64(buf, target_len);
 				target_len = 16;
 				g_string_append_printf(out, "fault address: 0x%lx\n", fault_lifetime);
 				break;
@@ -221,12 +242,12 @@ int qemu_setup_config()
 				target_len = 8;
 				break;
 			case 5:
-				fault_trigger_address = (uint64_t) buf[7] << 7*8 | (uint64_t) buf[6] << 6*8 | (uint64_t) buf[5] << 5*8 | (uint64_t) buf[4] << 4*8 |buf[3] << 3*8 | buf[2] << 2*8 | buf[1] << 1*8 | buf[0] << 0*8;
+				fault_trigger_address = char_to_uint64(buf, target_len);
 				target_len = 8;
 				g_string_append_printf(out, "fault address: 0x%lx\n", fault_trigger_address);
 				break;
 			case 6:
-				fault_trigger_hitcounter = (uint64_t) buf[7] << 7*8 | (uint64_t) buf[6] << 6*8 | (uint64_t) buf[5] << 5*8 | (uint64_t) buf[4] << 4*8 |buf[3] << 3*8 | buf[2] << 2*8 | buf[1] << 1*8 | buf[0] << 0*8;
+				fault_trigger_hitcounter = char_to_uint64(buf, target_len);
 				target_len = 8;
 				g_string_append_printf(out, "fault address: 0x%lx\n", fault_trigger_hitcounter);
 				break;
@@ -249,6 +270,10 @@ int add_fault(uint64_t fault_address, uint64_t fault_type, uint64_t fault_model,
 {
 	fault_list_t *new_fault;
 	new_fault = malloc(sizeof(fault_list_t));
+	if( new_fault == NULL)
+	{
+		return -1;
+	}
 	new_fault->next = NULL;
 	new_fault->fault.address = fault_address;
 	new_fault->fault.type = fault_type;
@@ -265,7 +290,7 @@ int add_fault(uint64_t fault_address, uint64_t fault_type, uint64_t fault_model,
 	{
 		new_fault->next = first_fault;
 	}
-		first_fault = new_fault;
+	first_fault = new_fault;
 	return 0;
 }
 
@@ -293,7 +318,7 @@ void delete_fault_queue()
  * function to return next pointer.
  * This is to be able to change the current link list if desired
  */
- fault_list_t * return_next(fault_list_t * current)
+fault_list_t * return_next(fault_list_t * current)
 {
 	return current->next;
 }
@@ -304,22 +329,39 @@ void delete_fault_queue()
  * function to return the fault address. 
  * This is to be able to change the current data structure if needed
  */
- uint64_t get_fault_trigger_address(fault_list_t * current)
+uint64_t get_fault_trigger_address(fault_list_t * current)
 {
 	return current->fault.trigger.address;
 }
 
+fault_list_t * get_fault_struct_by_trigger(uint64_t fault_trigger_address)
+{
+	fault_list_t * current = first_fault;
+	while(current != NULL)
+	{
+		if(current->fault.trigger.address == fault_trigger_address)
+		{
+			return current;
+		}
+		current = current->next;
+	}
+	return NULL;
+}
+
+
 /**
  * register_fault_address
  *
- * This function will fill the global fault trigger address array
+ * This function will fill the global fault trigger address array and fault address array
  */
 int register_fault_trigger_addresses()
 {
 	g_autoptr(GString) out = g_string_new("");
 	g_string_printf(out, "Calculate number of faults\n");
+	/*Select first element of list*/
 	fault_list_t * current = first_fault;
 	int i = 0;
+	/*traverse list*/
 	while(current != NULL)
 	{
 		i++;
@@ -332,18 +374,32 @@ int register_fault_trigger_addresses()
 		qemu_plugin_outs(out->str);
 		return -1;
 	}
+	/* Reset back to firs element*/
 	current = first_fault;
 	fault_number = i;
 	g_string_append_printf(out, "Fault number %i\n", fault_number);
+	/* Reserve Memory vor "Vector"*/
 	fault_trigger_addresses = malloc(sizeof(uint64_t) * fault_number);
+	fault_addresses = malloc(sizeof(uint64_t) * fault_number);
+	if(fault_trigger_addresses == NULL || fault_addresses == NULL)
+	{
+		g_string_append_printf(out, "malloc failed here in registerfaulttrigger\n");
+		qemu_plugin_outs(out->str);
+		return -1;
+	}
 	g_string_append(out, "Start registering faults\n");
 	g_string_append_printf(out, "fault trigger addresses: %p\n", fault_trigger_addresses);
-	qemu_plugin_outs(out->str);
+	g_string_append_printf(out, "fault addresses: %p\n", fault_addresses);
 	for(int j = 0; j < i; j++)
 	{
-		*(fault_trigger_addresses + j) = get_fault_trigger_address(current);  
+		/* Fill Vector with value*/
+		*(fault_trigger_addresses + j) = get_fault_trigger_address(current);
+		*(fault_addresses + j) = 0;	
+		g_string_append_printf(out, "fault trigger addresses: %p\n", fault_trigger_addresses+j);
+		g_string_append_printf(out, "fault addresses: %p\n", fault_addresses+j);
 		current = return_next(current);	
 	}
+	qemu_plugin_outs(out->str);
 	return 0;	
 }
 
@@ -408,6 +464,24 @@ void process_toggle_memory(uint64_t address, uint8_t  mask[])
 	}
 	ret = cpu_memory_rw_debug( cpu, address, value, 16, 1);
 }
+void inject_fault(fault_list_t * current)
+{
+	if( current != NULL)
+	{
+		if(current->fault.type = FLASH)
+		{
+			switch(current->fault.model)
+			{
+				case SET0:
+					break;
+				default:
+					break;
+			}
+		}
+	}
+}
+
+
 
 /**
  * handle_first_tb_fault_insertion
@@ -416,10 +490,11 @@ void process_toggle_memory(uint64_t address, uint8_t  mask[])
  */
 void handle_first_tb_fault_insertion()
 {
-	
+
 	g_autoptr(GString) out = g_string_new("");
-	g_string_printf(out, "First Insertion point!\n");
+	g_string_printf(out, "Look into if we need to insert a fault!\n");
 	fault_list_t * current = first_fault;
+	qemu_plugin_outs(out->str);
 	while(current != NULL)
 	{
 		if(current->fault.trigger.hitcounter == 0 && current->fault.type == FLASH )
@@ -427,19 +502,66 @@ void handle_first_tb_fault_insertion()
 			switch(current->fault.model)
 			{
 				case SET0:
+					g_string_append_printf(out, "Set 0 fault to Address %lx\n", current->fault.address);
 					process_set0_memory(current->fault.address, current->fault.mask);
 					break;
 				case SET1:
+					g_string_append_printf(out, "Set 1 fault to Address %lx\n", current->fault.address);
 					process_set1_memory(current->fault.address, current->fault.mask);
 					break;
 				case TOGGLE:
+					g_string_append_printf(out, "Set toggle fault to Address %lx\n", current->fault.address);
+	qemu_plugin_outs(out->str);
 					process_toggle_memory(current->fault.address, current->fault.mask);
 					break;
 				default:
 					break;
 			}
 		}
+		current = return_next( current);
+	}
+	qemu_plugin_outs(out->str);
 
+}
+
+
+/*
+ * calculate_bytesize_instructions
+ *
+ * Function to calculate size of TB. This is currently done 
+ * by simple multiply on the assumption of thumb2 instructions
+ */
+size_t calculate_bytesize_instructions(struct qemu_plugin_tb *tb)
+{
+	return (size_t) (tb->n * 2);
+}
+
+void evaluate_trigger(int trigger_address_number)
+{
+	
+	/*Get fault description*/
+	fault_list_t *current = get_fault_struct_by_trigger((uint64_t) *(fault_trigger_addresses + trigger_address_number));
+	current->fault.trigger.hitcounter = current->fault.trigger.hitcounter - 1;
+	if(current->fault.trigger.hitcounter == 0)
+	{
+		/* Trigger met. Start injection */
+		/* Remove trigger condition from internal struct*/
+		*(fault_trigger_addresses + trigger_address_number) = 0;
+		
+	}
+}
+
+void handle_tb_translate_event(struct qemu_plugin_tb *tb)
+{
+	fault_list_t * current = first_fault;
+	size_t tb_size = calculate_bytesize_instructions(tb);
+	/**Verify, that no trigger is called*/
+	for( int i = 0; i < fault_number; i++)
+	{
+		if((tb->vaddr < *(fault_trigger_addresses + i))&&((tb->vaddr + tb_size) > *(fault_trigger_addresses+i)))
+		{
+			evaluate_trigger( *(fault_trigger_addresses + i));
+		}
 	}
 }
 
@@ -453,19 +575,22 @@ static void vcpu_translateblock_translation_event(qemu_plugin_id_t id, struct qe
 	g_autoptr(GString) out = g_string_new("");
 	g_string_printf(out, "\n");
 
-	g_string_append_printf(out, "Virt1 value: %8lx", tb->vaddr);
-	
+	g_string_append_printf(out, "Virt1 value: %8lx\n", tb->vaddr);
+
+	qemu_plugin_outs(out->str);	
 	if(first_tb != 0)
 	{
-
+			g_string_append_printf(out, "So we do Stuff here\n\n");
 	}
 	else
 	{
 		g_string_append_printf(out, "This is the first time the tb is translated\n");
 		first_tb = 1;
+		qemu_plugin_outs(out->str);
+		g_string_printf(out, " ");
+		handle_first_tb_fault_insertion();
 	}
-
-	
+	qemu_plugin_outs(out->str);	
 }
 
 /**
@@ -476,13 +601,14 @@ static void vcpu_translateblock_translation_event(qemu_plugin_id_t id, struct qe
  *
  */
 QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id, 
-					const qemu_info_t *info,
-					int argc, char **argv)
+		const qemu_info_t *info,
+		int argc, char **argv)
 {
 	pipes = NULL;
 	first_fault = NULL;
 	fault_number = 0;
 	fault_trigger_addresses = NULL;
+	fault_addresses = NULL;
 	first_tb = 0;
 	g_autoptr(GString) out = g_string_new("");
 	g_string_printf(out, "QEMU INjection Plugin\n Current Target is %s\n", info->target_name);
@@ -494,6 +620,10 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 		return -1;
 	}
 	pipes = malloc(sizeof(fifos_t));
+	if(pipes == NULL)
+	{
+		goto ABBORT;
+	}
 	pipes->control = NULL;
 	pipes->config = NULL;
 	pipes->data = NULL;
@@ -522,9 +652,12 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 		goto ABBORT;
 	}
 	g_string_append_printf(out, "Number of triggers: %i\n", fault_number);
-	g_string_append_printf(out, "Reached end of Initialisation, aborting now\n");
+	g_string_append(out, "Register VCPU tb trans callback\n");
+	//qemu_plugin_register_vcpu_tb_trans_cb( id, vcpu_translateblock_translation_event);
+
+	g_string_append_printf(out, "Reached end of Initialisation, starting guest now\n");
 	qemu_plugin_outs(out->str);
-	return -1;
+	return 0;
 ABBORT:
 	delete_fault_trigger_addresses();
 	delete_fault_queue();
