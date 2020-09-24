@@ -485,6 +485,7 @@ void inject_fault(fault_list_t * current)
 			}
 			qemu_plugin_outs(out->str);
 			register_exec_callback(current->fault.address);
+			plugin_flush_tb();
 		}
 	}
 }
@@ -503,10 +504,12 @@ void handle_first_tb_fault_insertion()
 	g_string_printf(out, "Look into if we need to insert a fault!\n");
 	fault_list_t * current = first_fault;
 	qemu_plugin_outs(out->str);
+	g_string_printf(out, " ");
 	while(current != NULL)
 	{
 		if(current->fault.trigger.hitcounter == 0 && current->fault.type == FLASH )
 		{
+			qemu_plugin_outs("Insert first fault\n");
 			inject_fault(current);
 			for(int i = 0; i < fault_number; i++)
 			{
@@ -531,6 +534,10 @@ void handle_first_tb_fault_insertion()
  */
 size_t calculate_bytesize_instructions(struct qemu_plugin_tb *tb)
 {
+	g_autoptr(GString) out = g_string_new("");
+	g_string_printf(out, "tb instruction size is %li \n", tb->n * 2);
+
+	qemu_plugin_outs(out->str);
 	return (size_t) (tb->n * 2);
 }
 
@@ -551,9 +558,20 @@ void evaluate_trigger(int trigger_address_number)
 		/* Trigger met. Start injection */
 		/* Remove trigger condition from internal struct*/
 		*(fault_trigger_addresses + trigger_address_number) = 0;
-
-
+		/* inject fault */
+		inject_fault(current);
+		qemu_plugin_outs("Injected fault\n");
 	}
+}
+
+// Calback for instructin exec
+void insn_exec_cb(unsigned int vcpu_index, void *userdata)
+{
+	g_autoptr(GString) out = g_string_new("");
+	g_string_append(out, "Next instruciont\n");
+	g_string_append_printf(out, " reg[0]: %08x\n", read_arm_reg(0));
+
+	qemu_plugin_outs(out->str);
 }
 
 /**
@@ -566,12 +584,35 @@ void handle_tb_translate_event(struct qemu_plugin_tb *tb)
 {
 	fault_list_t * current = first_fault;
 	size_t tb_size = calculate_bytesize_instructions(tb);
+	qemu_plugin_outs("Reached tb handle function\n");
 	/**Verify, that no trigger is called*/
 	for( int i = 0; i < fault_number; i++)
 	{
 		if((tb->vaddr < *(fault_trigger_addresses + i))&&((tb->vaddr + tb_size) > *(fault_trigger_addresses+i)))
 		{
-			evaluate_trigger( *(fault_trigger_addresses + i));
+			g_autoptr(GString) out = g_string_new("");
+			g_string_printf(out, "Met trigger address: %lx\n", *(fault_trigger_addresses + i) );
+			qemu_plugin_outs(out->str);
+			evaluate_trigger( i);
+		}
+	}
+	for(int i = 0; i < exec_callback; i++)
+	{
+		if((tb->vaddr < *(fault_addresses + i)) && ((tb->vaddr + tb_size) > *(fault_addresses + i)))
+		{
+			g_autoptr(GString) out = g_string_new("");
+			g_string_printf(out, " Reached exec callback event\n");
+			qemu_plugin_outs(out->str);
+			for(int j = 0; j < tb->n; j++)
+			{
+				struct qemu_plugin_insn *insn = qemu_plugin_tb_get_insn(tb, j);
+				if( insn->vaddr == *(fault_addresses + i))
+				{
+					/*Register fault callback*/
+					qemu_plugin_outs("Register exec callback\n");
+					qemu_plugin_register_vcpu_insn_exec_cb(insn, insn_exec_cb, QEMU_PLUGIN_CB_RW_REGS,NULL);
+				}
+			}
 		}
 	}
 }
@@ -588,10 +629,15 @@ static void vcpu_translateblock_translation_event(qemu_plugin_id_t id, struct qe
 
 	g_string_append_printf(out, "Virt1 value: %8lx\n", tb->vaddr);
 
-	qemu_plugin_outs(out->str);	
+	qemu_plugin_outs(out->str);
+	g_string_printf(out, " ");
 	if(first_tb != 0)
 	{
-		g_string_append_printf(out, "So we do Stuff here\n\n");
+		g_string_append_printf(out, "Reached normal tb\n\n");
+		qemu_plugin_outs(out->str);
+		g_string_printf(out, " ");
+		handle_tb_translate_event( tb);
+
 	}
 	else
 	{
@@ -636,9 +682,9 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 	{
 		goto ABBORT;
 	}
-	pipes->control = NULL;
-	pipes->config = NULL;
-	pipes->data = NULL;
+	pipes->control = -1;
+	pipes->config = -1;
+	pipes->data = -1;
 	/*Start Argparsing and open up the Fifos*/
 	if(parse_args(argc, argv, out) != 0)
 	{
