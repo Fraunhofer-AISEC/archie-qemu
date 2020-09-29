@@ -530,6 +530,7 @@ void inject_fault(fault_list_t * current)
 			qemu_plugin_outs(out->str);
 			register_exec_callback(current->fault.address);
 			plugin_flush_tb();
+			qemu_plugin_outs("Fulshed tb\n");
 		}
 	}
 }
@@ -585,27 +586,51 @@ size_t calculate_bytesize_instructions(struct qemu_plugin_tb *tb)
 	return (size_t) (tb->n * 2);
 }
 
+uint8_t flush_tb;
 /**
+ * trigger_insn_cb
+ *
+ * This function is registered on insn exec of trigger
  */
 void trigger_insn_cb(unsigned int vcpu_index, void *vcurrent)
 {
 	fault_list_t *current = (fault_list_t *) vcurrent;
+
+	//current->fault.trigger.hitcounter = current->fault.trigger.hitcounter - 1;
 	if(current->fault.trigger.hitcounter != 0)
 	{
-	current->fault.trigger.hitcounter = current->fault.trigger.hitcounter - 1;
-	qemu_plugin_outs("Trigger eval function reached\n");
+		current->fault.trigger.hitcounter = current->fault.trigger.hitcounter - 1;
+		qemu_plugin_outs("Trigger eval function reached\n");
+		if(current->fault.trigger.hitcounter == 0 )
+		{
+			/*Trigger met, Inject fault*/
+			qemu_plugin_outs("Trigger reached level, inject fault\n");
+			inject_fault(current);
+			flush_tb = 1;
+		}
 	}
 	else
 	{
 		qemu_plugin_outs("[ERROR]: The hitcounter was already 0\n");
 	}
-	if(current->fault.trigger.hitcounter < 1 )
+}
+
+/**
+ *
+ */
+void tb_exec_cb(unsigned int vcpu_index, void *userdata)
+{
+	fault_list_t *current = (fault_list_t *) userdata;
+
+	if(flush_tb == 1)
 	{
-		/*Trigger flush of tb cache to force eval_trigger function*/
-		qemu_plugin_outs("Trigger reached level\n");
+		qemu_plugin_outs("Flushing TB for real\n");
+		flush_tb = 0;
 		plugin_flush_tb();
 	}
+	qemu_plugin_outs("[TB] exec tb exec cb\n");
 }
+
 /**
  *  evaluate_trigger
  *
@@ -616,33 +641,20 @@ void evaluate_trigger(struct qemu_plugin_tb *tb,int trigger_address_number)
 
 	/*Get fault description*/
 	fault_list_t *current = get_fault_struct_by_trigger((uint64_t) *(fault_trigger_addresses + trigger_address_number));
-	//current->fault.trigger.hitcounter = current->fault.trigger.hitcounter - 1;
-	if(current->fault.trigger.hitcounter <= 1)
+	/* Trigger not met. Register callback*/
+	for(int i = 0; i < tb->n; i++)
 	{
-		/* Trigger met. Start injection */
-		/* Remove trigger condition from internal struct*/
-		*(fault_trigger_addresses + trigger_address_number) = 0;
-		/* inject fault */
-		inject_fault(current);
-		qemu_plugin_outs("Injected fault\n");
-		print_assembler(tb);
-	}
-	else
-	{
-		/* Trigger not met. Register callback*/
-		for(int i = 0; i < tb->n; i++)
+		struct qemu_plugin_insn *insn = qemu_plugin_tb_get_insn(tb, i);
+		if((current->fault.trigger.address >= qemu_plugin_insn_vaddr(insn))&&(current->fault.trigger.address < qemu_plugin_insn_vaddr(insn) + qemu_plugin_insn_size(insn)))
 		{
-			struct qemu_plugin_insn *insn = qemu_plugin_tb_get_insn(tb, i);
-			if((current->fault.trigger.address >= qemu_plugin_insn_vaddr(insn))&&(current->fault.trigger.address <= qemu_plugin_insn_vaddr(insn) + qemu_plugin_insn_size(insn)))
-			{
-				/* Trigger address met*/
-				qemu_plugin_register_vcpu_insn_exec_cb(insn, trigger_insn_cb, QEMU_PLUGIN_CB_RW_REGS, current);
-				
-			}
-		}
-		print_assembler(tb);
-	}
+			/* Trigger address met*/
+			qemu_plugin_outs("[TB] Reached injection of callback\n");
+			qemu_plugin_register_vcpu_insn_exec_cb(insn, trigger_insn_cb, QEMU_PLUGIN_CB_RW_REGS, current);
+			qemu_plugin_register_vcpu_tb_exec_cb(tb, tb_exec_cb, QEMU_PLUGIN_CB_RW_REGS, current);
 
+		}
+	}
+	print_assembler(tb);
 }
 
 // Calback for instructin exec
@@ -662,12 +674,12 @@ void insn_exec_cb(unsigned int vcpu_index, void *userdata)
  */
 void eval_exec_callback(struct qemu_plugin_tb *tb, int exec_callback_number)
 {
-	
+
 	fault_list_t * current = get_fault_struct_by_exec((uint64_t) *(fault_addresses + exec_callback_number));
-	
+
 	if(current->fault.lifetime == 0)
 	{
-		
+
 		*(fault_addresses + exec_callback_number) = 0;
 		qemu_plugin_outs("Remove exec callback\n");
 	}
@@ -774,6 +786,7 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 	fault_addresses = NULL;
 	exec_callback = 0;
 	first_tb = 0;
+	flush_tb = 0;
 	g_autoptr(GString) out = g_string_new("");
 	g_string_printf(out, "QEMU INjection Plugin\n Current Target is %s\n", info->target_name);
 	g_string_append_printf(out, "Current Version of QEMU Plugin is %i, Min Version is %i\n", info->version.cur, info->version.min);
@@ -813,7 +826,7 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 	g_string_printf(out, " ");
 	if(register_fault_trigger_addresses() < 0 )
 	{
-	    goto ABBORT;
+		goto ABBORT;
 	}
 	g_string_append_printf(out, "Number of triggers: %i\n", fault_number);
 	g_string_append(out, "Register VCPU tb trans callback\n");
