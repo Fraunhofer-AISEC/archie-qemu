@@ -137,6 +137,23 @@ uint64_t char_to_uint64(char *c, int size_c)
 
 
 /**
+ * print_assembler
+ */
+void print_assembler(struct qemu_plugin_tb *tb)
+{
+	g_autoptr(GString) out = g_string_new("");
+	g_string_printf(out, "\n");
+
+	for(int i = 0; i < tb->n; i++)
+	{
+		struct qemu_plugin_insn *insn = qemu_plugin_tb_get_insn(tb, i);
+		g_string_append_printf(out, "%8lx ", insn->vaddr);
+		g_string_append_printf(out, "%s\n", qemu_plugin_insn_disas( insn));
+	}
+	qemu_plugin_outs(out->str);
+}
+
+/**
  *
  * qemu_setup_config
  *
@@ -323,6 +340,20 @@ fault_list_t * get_fault_struct_by_trigger(uint64_t fault_trigger_address)
 	return NULL;
 }
 
+fault_list_t * get_fault_struct_by_exec(uint64_t exec_callback_address)
+{
+	fault_list_t * current = first_fault;
+	while(current != NULL)
+	{
+		if(current->fault.address == exec_callback_address)
+		{
+			return current;
+		}
+		current = current->next;
+	}
+	return NULL;
+}
+
 
 /**
  * register_fault_address
@@ -399,7 +430,11 @@ void process_set1_memory(uint64_t address, uint8_t  mask[])
 	{
 		value[i] = value[i] | mask[i];
 	}
-	ret = cpu_memory_rw_debug( cpu, address, value, 16, 1);
+	ret += cpu_memory_rw_debug( cpu, address, value, 16, 1);
+	if (ret < 0)
+	{
+		qemu_plugin_outs("Somthing went wrong in read/write to cpu in process_set0_memory\n");
+	}
 }
 
 /**
@@ -412,12 +447,17 @@ void process_set0_memory(uint64_t address, uint8_t  mask[])
 	uint8_t value[16];
 	CPUState *cpu = current_cpu;
 	int ret;
+	/*TODO Return validate*/
 	ret = cpu_memory_rw_debug( cpu, address, value, 16, 0);
 	for(int i = 0; i < 16; i++)
 	{
 		value[i] = value[i] & ~(mask[i]);
 	}
-	ret = cpu_memory_rw_debug( cpu, address, value, 16, 1);
+	ret += cpu_memory_rw_debug( cpu, address, value, 16, 1);
+	if (ret < 0)
+	{
+		qemu_plugin_outs("Somthing went wrong in read/write to cpu in process_set0_memory\n");
+	}
 }
 
 /**
@@ -430,12 +470,16 @@ void process_toggle_memory(uint64_t address, uint8_t  mask[])
 	uint8_t value[16];
 	CPUState *cpu = current_cpu;
 	int ret;
-	ret = cpu_memory_rw_debug( cpu, address, value, 16, 0);
+	ret = cpu_memory_rw_debug( cpu, address - 1, value, 16, 0);
 	for(int i = 0; i < 16; i++)
 	{
 		value[i] = value[i] ^ mask[i];
 	}
-	ret = cpu_memory_rw_debug( cpu, address, value, 16, 1);
+	ret += cpu_memory_rw_debug( cpu, address - 1, value, 16, 1);
+	if (ret < 0)
+	{
+		qemu_plugin_outs("Somthing went wrong in read/write to cpu in process_set0_memory\n");
+	}
 }
 
 /**
@@ -464,7 +508,7 @@ void inject_fault(fault_list_t * current)
 	g_autoptr(GString) out = g_string_new("");
 	if( current != NULL)
 	{
-		if(current->fault.type = FLASH)
+		if(current->fault.type == FLASH)
 		{
 			switch(current->fault.model)
 			{
@@ -542,18 +586,38 @@ size_t calculate_bytesize_instructions(struct qemu_plugin_tb *tb)
 }
 
 /**
+ */
+void trigger_insn_cb(unsigned int vcpu_index, void *vcurrent)
+{
+	fault_list_t *current = (fault_list_t *) vcurrent;
+	if(current->fault.trigger.hitcounter != 0)
+	{
+	current->fault.trigger.hitcounter = current->fault.trigger.hitcounter - 1;
+	qemu_plugin_outs("Trigger eval function reached\n");
+	}
+	else
+	{
+		qemu_plugin_outs("[ERROR]: The hitcounter was already 0\n");
+	}
+	if(current->fault.trigger.hitcounter < 1 )
+	{
+		/*Trigger flush of tb cache to force eval_trigger function*/
+		qemu_plugin_outs("Trigger reached level\n");
+		plugin_flush_tb();
+	}
+}
+/**
  *  evaluate_trigger
  *
  *  This function takes the trigger address number and evaluates the trigger condition
  */
-
-void evaluate_trigger(int trigger_address_number)
+void evaluate_trigger(struct qemu_plugin_tb *tb,int trigger_address_number)
 {
 
 	/*Get fault description*/
 	fault_list_t *current = get_fault_struct_by_trigger((uint64_t) *(fault_trigger_addresses + trigger_address_number));
-	current->fault.trigger.hitcounter = current->fault.trigger.hitcounter - 1;
-	if(current->fault.trigger.hitcounter == 0)
+	//current->fault.trigger.hitcounter = current->fault.trigger.hitcounter - 1;
+	if(current->fault.trigger.hitcounter <= 1)
 	{
 		/* Trigger met. Start injection */
 		/* Remove trigger condition from internal struct*/
@@ -561,7 +625,24 @@ void evaluate_trigger(int trigger_address_number)
 		/* inject fault */
 		inject_fault(current);
 		qemu_plugin_outs("Injected fault\n");
+		print_assembler(tb);
 	}
+	else
+	{
+		/* Trigger not met. Register callback*/
+		for(int i = 0; i < tb->n; i++)
+		{
+			struct qemu_plugin_insn *insn = qemu_plugin_tb_get_insn(tb, i);
+			if((current->fault.trigger.address >= qemu_plugin_insn_vaddr(insn))&&(current->fault.trigger.address <= qemu_plugin_insn_vaddr(insn) + qemu_plugin_insn_size(insn)))
+			{
+				/* Trigger address met*/
+				qemu_plugin_register_vcpu_insn_exec_cb(insn, trigger_insn_cb, QEMU_PLUGIN_CB_RW_REGS, current);
+				
+			}
+		}
+		print_assembler(tb);
+	}
+
 }
 
 // Calback for instructin exec
@@ -573,6 +654,39 @@ void insn_exec_cb(unsigned int vcpu_index, void *userdata)
 
 	qemu_plugin_outs(out->str);
 }
+
+/**
+ * eval_exec_callback
+ *
+ *
+ */
+void eval_exec_callback(struct qemu_plugin_tb *tb, int exec_callback_number)
+{
+	
+	fault_list_t * current = get_fault_struct_by_exec((uint64_t) *(fault_addresses + exec_callback_number));
+	
+	if(current->fault.lifetime == 0)
+	{
+		
+		*(fault_addresses + exec_callback_number) = 0;
+		qemu_plugin_outs("Remove exec callback\n");
+	}
+	else
+	{
+		/* Register exec callback*/
+		for(int i = 0; i < tb->n; i++)
+		{
+			struct qemu_plugin_insn *insn = qemu_plugin_tb_get_insn(tb, i);
+			if((current->fault.address >= qemu_plugin_insn_vaddr(insn))&&(current->fault.address <= qemu_plugin_insn_vaddr(insn) + qemu_plugin_insn_size(insn)))
+			{
+				/* Trigger address met*/
+				qemu_plugin_outs("Register exec callback\n");
+				//qemu_plugin_register_vcpu_insn_exec_cb(insn, trigger_insn_cb, QEMU_PLUGIN_CB_RW_REGS, current);
+			}	
+		}
+	}
+}
+
 
 /**
  * handle_tb_translate_event
@@ -588,14 +702,15 @@ void handle_tb_translate_event(struct qemu_plugin_tb *tb)
 	/**Verify, that no trigger is called*/
 	for( int i = 0; i < fault_number; i++)
 	{
-		if((tb->vaddr < *(fault_trigger_addresses + i))&&((tb->vaddr + tb_size) > *(fault_trigger_addresses+i)))
+		if((tb->vaddr <= *(fault_trigger_addresses + i))&&((tb->vaddr + tb_size) >= *(fault_trigger_addresses+i)))
 		{
 			g_autoptr(GString) out = g_string_new("");
 			g_string_printf(out, "Met trigger address: %lx\n", *(fault_trigger_addresses + i) );
 			qemu_plugin_outs(out->str);
-			evaluate_trigger( i);
+			evaluate_trigger( tb, i);
 		}
 	}
+	/* Verify, if exec callback is requested */
 	for(int i = 0; i < exec_callback; i++)
 	{
 		if((tb->vaddr < *(fault_addresses + i)) && ((tb->vaddr + tb_size) > *(fault_addresses + i)))
@@ -603,16 +718,7 @@ void handle_tb_translate_event(struct qemu_plugin_tb *tb)
 			g_autoptr(GString) out = g_string_new("");
 			g_string_printf(out, " Reached exec callback event\n");
 			qemu_plugin_outs(out->str);
-			for(int j = 0; j < tb->n; j++)
-			{
-				struct qemu_plugin_insn *insn = qemu_plugin_tb_get_insn(tb, j);
-				if( insn->vaddr == *(fault_addresses + i))
-				{
-					/*Register fault callback*/
-					qemu_plugin_outs("Register exec callback\n");
-					qemu_plugin_register_vcpu_insn_exec_cb(insn, insn_exec_cb, QEMU_PLUGIN_CB_RW_REGS,NULL);
-				}
-			}
+			eval_exec_callback(tb, i);
 		}
 	}
 }
