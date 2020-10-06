@@ -498,6 +498,64 @@ void register_exec_callback(uint64_t address)
 	exec_callback++;
 }
 
+
+void inject_memory_fault(fault_list_t * current)
+{
+	g_autoptr(GString) out = g_string_new("");
+	switch(current->fault.model)
+	{
+		case SET0:
+			g_string_append_printf(out, "Set 0 fault to Address %lx\n", current->fault.address);
+			process_set0_memory(current->fault.address, current->fault.mask);
+			break;
+		case SET1:
+			g_string_append_printf(out, "Set 1 fault to Address %lx\n", current->fault.address);
+			process_set1_memory(current->fault.address, current->fault.mask);
+			break;
+		case TOGGLE:
+			g_string_append_printf(out, "Toggle fault to Address %lx\n", current->fault.address);
+			process_toggle_memory(current->fault.address, current->fault.mask);
+			break;
+		default:
+			break;
+	}
+	qemu_plugin_outs(out->str);
+
+}
+
+
+void inject_register_fault(fault_list_t * current)
+{
+	g_autoptr(GString) out = g_string_new("");
+	if(current->fault.address > 14)
+	{
+		qemu_plugin_outs("[ERROR] Register not valid\n");
+		return;
+	}
+	uint32_t reg = read_arm_reg(current->fault.address);
+	uint32_t mask = 0;
+	for(int i = 0; i < 4; i++)
+	{
+		mask += (current->fault.mask[i] << 8*i);
+	}
+	g_string_printf(out," Changing registert %li from %08x", current->fault.address, reg);
+	switch(current->fault.model)
+	{
+		case SET0:
+			reg = reg & ~(mask);
+			break;
+		case SET1:
+			reg = reg | mask;
+			break;
+		case TOGGLE:
+			reg = reg ^ mask;
+			break;
+		default:
+			break;
+	}
+	g_string_append_printf(out, " to %08x\n", reg);
+	qemu_plugin_outs(out->str);
+}
 /**
  * inject_fault
  *
@@ -510,27 +568,24 @@ void inject_fault(fault_list_t * current)
 	{
 		if(current->fault.type == FLASH)
 		{
-			switch(current->fault.model)
-			{
-				case SET0:
-					g_string_append_printf(out, "Set 0 fault to Address %lx\n", current->fault.address);
-					process_set0_memory(current->fault.address, current->fault.mask);
-					break;
-				case SET1:
-					g_string_append_printf(out, "Set 1 fault to Address %lx\n", current->fault.address);
-					process_set1_memory(current->fault.address, current->fault.mask);
-					break;
-				case TOGGLE:
-					g_string_append_printf(out, "Toggle fault to Address %lx\n", current->fault.address);
-					process_toggle_memory(current->fault.address, current->fault.mask);
-					break;
-				default:
-					break;
-			}
-			qemu_plugin_outs(out->str);
+			qemu_plugin_outs("[Fault] Inject flash fault\n");
+			inject_memory_fault( current);
 			register_exec_callback(current->fault.address);
 			plugin_flush_tb();
 			qemu_plugin_outs("Fulshed tb\n");
+		}
+		if(current->fault.type == SRAM)
+		{
+			qemu_plugin_outs("[Fault] Inject sram fault\n");
+			inject_memory_fault( current);
+			plugin_flush_tb();
+			qemu_plugin_outs("Flushed tb\n");
+		}
+		if(current->fault.type == REGISTER)
+		{
+			qemu_plugin_outs("[Fault] Inject register fault\n");
+			inject_register_fault( current);
+			//TODO
 		}
 	}
 }
@@ -606,7 +661,7 @@ void trigger_insn_cb(unsigned int vcpu_index, void *vcurrent)
 			/*Trigger met, Inject fault*/
 			qemu_plugin_outs("Trigger reached level, inject fault\n");
 			inject_fault(current);
-			flush_tb = 1;
+			flush_tb = 0;
 		}
 	}
 	else
@@ -628,7 +683,7 @@ void tb_exec_cb(unsigned int vcpu_index, void *userdata)
 		flush_tb = 0;
 		plugin_flush_tb();
 	}
-	qemu_plugin_outs("[TB] exec tb exec cb\n");
+	//qemu_plugin_outs("[TB] exec tb exec cb\n");
 }
 
 /**
@@ -650,7 +705,7 @@ void evaluate_trigger(struct qemu_plugin_tb *tb,int trigger_address_number)
 			/* Trigger address met*/
 			qemu_plugin_outs("[TB] Reached injection of callback\n");
 			qemu_plugin_register_vcpu_insn_exec_cb(insn, trigger_insn_cb, QEMU_PLUGIN_CB_RW_REGS, current);
-			qemu_plugin_register_vcpu_tb_exec_cb(tb, tb_exec_cb, QEMU_PLUGIN_CB_RW_REGS, current);
+			//qemu_plugin_register_vcpu_tb_exec_cb(tb, tb_exec_cb, QEMU_PLUGIN_CB_RW_REGS, current);
 
 		}
 	}
@@ -711,6 +766,7 @@ void handle_tb_translate_event(struct qemu_plugin_tb *tb)
 	fault_list_t * current = first_fault;
 	size_t tb_size = calculate_bytesize_instructions(tb);
 	qemu_plugin_outs("Reached tb handle function\n");
+	qemu_plugin_register_vcpu_tb_exec_cb(tb, tb_exec_cb, QEMU_PLUGIN_CB_RW_REGS, NULL);
 	/**Verify, that no trigger is called*/
 	for( int i = 0; i < fault_number; i++)
 	{
@@ -745,13 +801,13 @@ static void vcpu_translateblock_translation_event(qemu_plugin_id_t id, struct qe
 	g_autoptr(GString) out = g_string_new("");
 	g_string_printf(out, "\n");
 
-	g_string_append_printf(out, "Virt1 value: %8lx\n", tb->vaddr);
+	g_string_append_printf(out, "[TB] Virt1 value: %8lx\n", tb->vaddr);
 
 	qemu_plugin_outs(out->str);
 	g_string_printf(out, " ");
 	if(first_tb != 0)
 	{
-		g_string_append_printf(out, "Reached normal tb\n\n");
+		g_string_append_printf(out, "[TB] Reached normal tb\n\n");
 		qemu_plugin_outs(out->str);
 		g_string_printf(out, " ");
 		handle_tb_translate_event( tb);
