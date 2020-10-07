@@ -79,6 +79,135 @@ int	fault_number;
 int	exec_callback;
 int 	first_tb;
 
+
+/* Hashtable for saving tb informations*/
+typedef struct tb_info_t tb_info_t;
+typedef struct
+{
+	uint64_t base_address;
+	uint64_t size;
+	uint64_t instruction_count;
+	GString * assembler;
+	uint64_t num_of_exec; // Number of executions(aka a counter)
+	tb_info_t *next;
+}tb_info_t;
+
+typedef struct hash_tb_info_t hash_tb_info_t;
+typedef struct
+{
+	int valid;
+	int key; //base address
+	tb_info_t *tb;
+	hash_tb_info_t* next;
+}hash_tb_info_t;
+
+/* Global hashtable variables */
+#define FIRST_HASH_TABLE_SIZE 256
+/* Hash table array */
+hash_tb_info_t hash_table[];
+/* Hash table size */
+int hash_table_size;
+
+hash_tb_info_t* dummy_hash;
+
+hash_tb_info_t first_hash_tb_info;
+hash_tb_info_t last_hash_tb_info;
+
+void fill_hash_table()
+{
+	// this function initilieses the hash tabel array with invalid hash entries.
+	for(int i = 0; i < hash_table_size; i++)
+	{
+		hash_table[i] = dummy_hash;
+	}
+}
+
+void create_hash_table()
+{
+	hash_table = malloc(sizeof(hash_tb_info_t) * hash_table_size);
+	fill_hash_table();
+}
+
+void delete_hash_table()
+{
+	free(hash_table);
+}
+
+uint64_t get_key_hash(uint64_t key)
+{
+	return key % hash_table_size;
+}
+
+void init_hash_table()
+{
+	/* Initialise first the init size */
+	hash_table_size = FIRST_HASH_TABLE_SIZE;
+	first_hash_tb_info = NULL;
+	last_hash_tb_info = NULL;
+	/* Initialise dummy item*/
+	dummy_hash = malloc(sizeof(hash_tb_info_t));
+	dummy_hash->valid = 0;
+	dummy_hash->key = -1;
+	dummy_hash->tb = NULL;
+	/* Initialise array */
+	create_hash_table();
+	/*hash table can now be filled*/
+}
+
+int increase_hash_table()
+{
+	hash_tb_info_t* current = first_hash_tb_info;
+
+	delete_hash_table();
+
+	//increase hash table size
+	hash_table_size = hash_table_size * 2;
+
+	//reinit memory
+	create_hash_table();
+	while(current != NULL)
+	{
+		uint64_t hkey = get_key_hash( current->key);
+		if(hash_table[hkey]->valid == 1 )
+		{
+			return -1;
+		}
+		hash_table[hkey] = current;
+		current = current->next;
+	}	
+	return 0;
+}
+
+void insert_element(tb_info_t* tb)
+{
+	uint64_t hkey = 0;
+	int valid = 0;
+	hash_tb_info_t* element = malloc(sizeof(hash_tb_info_t));
+	element->tb = tb;
+	element->key = tb->base_address;
+	element->valid = 0;
+	element->next = NULL;
+	hkey = get_key_hash(element->key);
+	/* is it empty?*/
+	valid = hash_table[hkey]->valid;
+	while(valid == 1)
+	{
+		/* Hash collition. Need to increase hashtable*/
+		if(increase_hash_table() == 0)//everything went fine in the increase
+		{
+			hkey = get_key_hash(element->key);
+			valid = hash_table[hkey]->valid;
+		}
+		/* if not true, valid will not be 1*/
+	}
+	/* now have a valid hkey*/
+	/* Insert element into htable*/
+	hash_table[hkey] = element;
+	/* Insert into linked list for increase purposes*/
+	element->next = first_hash_tb_info;
+	first_hash_tb_info = element;
+}
+
 /*QEMU plugin Version control*/
 
 QEMU_PLUGIN_EXPORT int qemu_plugin_version = QEMU_PLUGIN_VERSION;
@@ -138,6 +267,8 @@ uint64_t char_to_uint64(char *c, int size_c)
 
 /**
  * print_assembler
+ *
+ * print assembler to consol
  */
 void print_assembler(struct qemu_plugin_tb *tb)
 {
@@ -151,6 +282,24 @@ void print_assembler(struct qemu_plugin_tb *tb)
 		g_string_append_printf(out, "%s\n", qemu_plugin_insn_disas( insn));
 	}
 	qemu_plugin_outs(out->str);
+}
+
+/**
+ * decode_assembler
+ *
+ * build string 
+ */
+
+GString* decode_assembler(struct qemu_plugin_tb *tb)
+{
+	GString* out = g_string_new("");
+	
+	for(int i = 0; i < tb->n; i++)
+	{
+		struct qemu_plugin_insn * insn = qemu_plugin_tb_get_insn(tb, i);
+		g_string_append_printf(out, "[%8lx]: %s\n", insn->vaddr, qemu_plugin_insn_disas(insn));
+	}
+	return out;
 }
 
 /**
@@ -635,13 +784,16 @@ void handle_first_tb_fault_insertion()
 size_t calculate_bytesize_instructions(struct qemu_plugin_tb *tb)
 {
 	g_autoptr(GString) out = g_string_new("");
-	g_string_printf(out, "tb instruction size is %li \n", tb->n * 2);
+	
+	struct qemu_plugin_insn * insn_first = qemu_plugin_tb_get_insn(tb, 0);
+	struct qemu_plugin_insn * insn_last = qemu_plugin_tb_get_insn(tb, tb->n -1);
+	uint64_t size = (insn_last->vaddr - insn_first->vaddr) + insn_last->data->len;
+	g_string_printf(out, "tb instruction size is %li \n", size);
 
 	qemu_plugin_outs(out->str);
-	return (size_t) (tb->n * 2);
+	return (size_t) size;
 }
 
-uint8_t flush_tb;
 /**
  * trigger_insn_cb
  *
@@ -661,7 +813,6 @@ void trigger_insn_cb(unsigned int vcpu_index, void *vcurrent)
 			/*Trigger met, Inject fault*/
 			qemu_plugin_outs("Trigger reached level, inject fault\n");
 			inject_fault(current);
-			flush_tb = 0;
 		}
 	}
 	else
@@ -677,12 +828,6 @@ void tb_exec_cb(unsigned int vcpu_index, void *userdata)
 {
 	fault_list_t *current = (fault_list_t *) userdata;
 
-	if(flush_tb == 1)
-	{
-		qemu_plugin_outs("Flushing TB for real\n");
-		flush_tb = 0;
-		plugin_flush_tb();
-	}
 	//qemu_plugin_outs("[TB] exec tb exec cb\n");
 }
 
@@ -791,6 +936,19 @@ void handle_tb_translate_event(struct qemu_plugin_tb *tb)
 	}
 }
 
+void handle_tb_translate_data(struct qemu_plugin_tb *tb)
+{
+	//TODO
+	//virt1 ist id der tb
+	g_autoptr(GString) out = g_string_new("");
+	GString *assembler = decode_assembler(tb);
+	g_string_printf(out, "[TB Info] tb id: %8lx\n[TB Info] tb size: %i\n[TB Info] Assembler:\n%s", tb->vaddr, tb->n, assembler->str);
+	g_string_free(assembler, TRUE);
+	qemu_plugin_outs(out->str);
+	
+}
+
+
 /**
  * vcpu_translateblock_translation_event
  *
@@ -821,7 +979,8 @@ static void vcpu_translateblock_translation_event(qemu_plugin_id_t id, struct qe
 		g_string_printf(out, " ");
 		handle_first_tb_fault_insertion();
 	}
-	qemu_plugin_outs(out->str);	
+	qemu_plugin_outs(out->str);
+	handle_tb_translate_data(tb);
 }
 
 /**
@@ -842,7 +1001,6 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 	fault_addresses = NULL;
 	exec_callback = 0;
 	first_tb = 0;
-	flush_tb = 0;
 	g_autoptr(GString) out = g_string_new("");
 	g_string_printf(out, "QEMU INjection Plugin\n Current Target is %s\n", info->target_name);
 	g_string_append_printf(out, "Current Version of QEMU Plugin is %i, Min Version is %i\n", info->version.cur, info->version.min);
