@@ -14,7 +14,7 @@ VPATH += $(SRC_PATH)/tests/plugin/develop
 
 NAMES :=
 #NAMES += bb
-NAMES += empty
+#NAMES += empty
 NAMES += faultplugin
 #NAMES += mem
 #NAMES += hotblocks
@@ -34,14 +34,18 @@ CFLAGS += -I$(SRC_PATH)/include
 CFLAGS += -I$(BUILD_DIR)
 all: $(SONAMES)
 
+lib/avl.o: lib/avl.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-lib%.so: %.o
+lib%.so: %.o lib/avl.o
 	$(CC) -shared -Wl,-soname,$@ -o $@ $^ $(LDLIBS)
 
 clean:
 	rm -f *.o *.so *.d
+	rm -f lib/*.o
 	rm -Rf .libs
 
 .PHONY: all clean
