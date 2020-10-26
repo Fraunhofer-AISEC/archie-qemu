@@ -80,6 +80,9 @@ int	fault_number;
 int	exec_callback;
 int 	first_tb;
 
+int first_fault_injected;
+int tb_counter;
+int tb_counter_max;
 
 /*Output TB data structures*/
 typedef struct tb_info_t tb_info_t;
@@ -95,6 +98,22 @@ typedef struct tb_info_t
 
 tb_info_t *tb_info_list; 
 
+/*AVL global variables*/
+struct avl_table *tb_avl_root;
+
+void tb_info_free()
+{
+	tb_info_t *item;
+	while(tb_info_list != NULL)
+	{
+		item = tb_info_list;
+		tb_info_list = tb_info_list->next;
+		free(item);
+	}
+	avl_destroy( tb_avl_root, NULL);
+	tb_avl_root = NULL;
+}
+
 typedef struct tb_exec_order_t tb_exec_order_t;
 typedef struct tb_exec_order_t
 {
@@ -103,10 +122,19 @@ typedef struct tb_exec_order_t
 }tb_exec_order_t;
 
 tb_exec_order_t *tb_exec_order_list;
+uint64_t num_exec_order;
 
+void tb_exec_order_free()
+{
+	tb_exec_order_t *item;
+	while(tb_exec_order_list != NULL)
+	{
+		item = tb_exec_order_list;
+		tb_exec_order_list = tb_exec_order_list->prev;
+		free(item);
+	}
+}
 
-/*AVL global variables*/
-struct avl_table *tb_avl_root;
 
 /*Needed for avl library. it will determen which element is bigger*/
 int tb_comparison_func(const void *tbl_a, const void *tbl_b, void * tbl_param)
@@ -126,15 +154,79 @@ int tb_comparison_func(const void *tbl_a, const void *tbl_b, void * tbl_param)
 	else return 0;
 }
 
+/* datastructures für memory access*/
+/* avl tree is used for insn address*/
+typedef struct mem_info_t mem_info_t;
+typedef struct mem_info_t
+{
+	uint64_t ins_address;
+	uint64_t size;
+	uint64_t memmory_address;
+	char	 direction;
+	uint64_t counter;
+	mem_info_t *next;
+}mem_info_t;
+
+mem_info_t *mem_info_list;
+
+struct avl_table *mem_avl_root;
+
+void mem_info_free()
+{
+	mem_info_t *item;
+	while(mem_info_list != NULL)
+	{
+		item = mem_info_list;
+		mem_info_list = mem_info_list->next;
+		free(item);
+	}
+	avl_destroy(mem_avl_root, NULL);
+	mem_avl_root = NULL;
+}
+
+// Compare ins address. Substraction does it
+int mem_comparison_func(const void *tbl_a, const void *tbl_b, void *tbl_param)
+{
+	const mem_info_t *mem_a = tbl_a;
+	const mem_info_t *mem_b = tbl_b;
+	return mem_a->ins_address - mem_b->ins_address;
+}
+
+
 //void tbl_item_func(void *tbl_item, void *tbl_param)
 //{
 //}
 
 //void * tbl_copy_func(void *tbl_item, void *tbl_param);
+//void tbl_destry_funv(void *tbl_itme, void *tbl_param);
 /*QEMU plugin Version control*/
 
 QEMU_PLUGIN_EXPORT int qemu_plugin_version = QEMU_PLUGIN_VERSION;
 
+
+/**
+ * memaccess_data_cb
+ *
+ */
+static void memaccess_data_cb(unsigned int vcpu_index, qemu_plugin_meminfo_t info, uint64_t vddr, void *userdata)
+{
+	mem_info_t tmp;
+	tmp.ins_address = (userdata);
+	mem_info_t *mem_access = avl_find(mem_avl_root,&tmp);
+	if(mem_access == NULL)
+	{
+		mem_access = malloc(sizeof(mem_info_t));
+		mem_access->ins_address = userdata;
+		mem_access->size = qemu_plugin_mem_size_shift(info);
+		mem_access->memmory_address = vddr;
+		mem_access->direction = qemu_plugin_mem_is_store(info);
+		mem_access->counter = 0;
+		avl_insert(mem_avl_root, mem_access);
+	}
+	mem_access->counter++;
+	mem_access->next = mem_info_list;
+	mem_info_list = mem_access;
+}
 
 /**
  *
@@ -659,6 +751,7 @@ void inject_fault(fault_list_t * current)
 			inject_register_fault( current);
 			//TODO
 		}
+		first_fault_injected = 1;
 	}
 }
 
@@ -822,6 +915,100 @@ void eval_exec_callback(struct qemu_plugin_tb *tb, int exec_callback_number)
 	}
 }
 
+int plugin_write_to_data_pipe(char *str, size_t len)
+{
+	g_autoptr(GString) out = g_string_new("");
+	ssize_t ret = 0;
+	while(len != 0)
+	{
+		ret = write( pipes->data, str, len);
+		if(ret == -1)
+		{
+			g_string_printf(out, "[DEBUG]: output string was: %s\n", str);
+			g_string_append_printf(out, "[DEBUG]: Value is negativ, Somthing happend in write: %s\n", strerror(errno));
+			g_string_append_printf(out, "[DEBUG]: File descriptor is : %i\n", pipes->data);
+			qemu_plugin_outs(out->str);
+			return -1;
+		}
+		str = str + ret;
+		len = len - ret;
+	}
+	return 0;
+}
+
+void plugin_dump_tb_information()
+{
+	g_autoptr(GString) out = g_string_new("");
+	g_string_printf(out, "[TB Information]:\n");
+	plugin_write_to_data_pipe(out->str, out->len);
+	tb_info_t *item = tb_info_list;
+	while(item != NULL)
+	{
+		g_string_printf(out, "%lx | %lx | %lx | %lx | %s \n", item->base_address, item->size, item->instruction_count, item->num_of_exec, item->assembler->str );
+		plugin_write_to_data_pipe(out->str, out->len);
+		item = item->next;
+	//	free(tb_info_list);
+	//	tb_info_list = item;
+	}
+		
+	//tb_info_t *tb_info_list;
+}
+
+void plugin_dump_tb_exec_order()
+{
+	g_autoptr(GString) out = g_string_new("");
+	g_string_printf(out, "[TB Exec]:\n");
+	plugin_write_to_data_pipe(out->str, out->len);
+	tb_exec_order_t *item =  tb_exec_order_list;
+	while(item != NULL)
+	{
+		g_string_printf(out, " %lx | %li \n", item->tb_info->base_address, num_exec_order);
+		plugin_write_to_data_pipe(out->str, out->len);
+		item = item->prev;
+		num_exec_order--;
+		//free(tb_exec_order_list);
+		//tb_exec_order_list = item;
+	}
+}
+
+void plugin_dump_mem_information()
+{
+	g_autoptr(GString) out = g_string_new("");
+	g_string_printf(out, "[Mem Information]: \n");
+	plugin_write_to_data_pipe(out->str, out->len);
+
+	mem_info_t *item = mem_info_list;
+	while(item != NULL);
+	{
+		g_string_printf(out, " %lx | %lx | %lx | %x | %lx \n", item->ins_address, item->size, item->memmory_address, item->direction, item->counter);
+		plugin_write_to_data_pipe(out->str, out->len);
+		item = item->next;
+		//free(mem_info_list);
+		//mem_info_list = item;
+	}
+}
+
+
+void plugin_end_information_dump()
+{
+	qemu_plugin_outs("[DEBUG]: Start printing to data pipe tb information\n");
+	plugin_dump_tb_information();
+	qemu_plugin_outs("[DEBUG]: Start printing to data pipe tb exec\n");
+	plugin_dump_tb_exec_order();
+	qemu_plugin_outs("[DEBUG]: Start printing to data pipe tb mem\n");
+	plugin_dump_mem_information();
+	qemu_plugin_outs("[DEBUG]: Information now in pipe, start deleting information in memory");
+	tb_info_free();
+	tb_exec_order_free();
+	mem_info_free();
+	qemu_plugin_outs("[DEBUG]: This is the End\n");
+	while(1)
+	{
+		mem_info_free();
+	}
+	//Now we will start to dump information
+	//
+}
 
 void tb_exec_data_event(unsigned int vcpu_index, void *vcurrent)
 {
@@ -831,9 +1018,17 @@ void tb_exec_data_event(unsigned int vcpu_index, void *vcurrent)
 	last->tb_info = tb_info;
 	last->prev = tb_exec_order_list;
 	tb_exec_order_list = last;
+	num_exec_order++;
 	//TODO
 	//Build Abbortion logic here. Because this will be executed every tb
-	//
+	if(first_fault_injected == 1)
+	{
+		if(tb_counter == tb_counter_max)
+		{
+			plugin_end_information_dump();
+		}
+		tb_counter++;
+	}
 	//
 //DEBUG	
 //	g_autoptr(GString) out = g_string_new("");
@@ -926,8 +1121,13 @@ void handle_tb_translate_data(struct qemu_plugin_tb *tb)
 	}
 
 	qemu_plugin_register_vcpu_tb_exec_cb(tb, tb_exec_data_event, QEMU_PLUGIN_CB_RW_REGS, tb_information);
-	
+	for(int i = 0; i < tb->n; i++)
+	{
+		struct qemu_plugin_insn *insn = qemu_plugin_tb_get_insn(tb, i);
 
+		qemu_plugin_register_vcpu_mem_cb( insn, memaccess_data_cb, QEMU_PLUGIN_CB_RW_REGS, QEMU_PLUGIN_MEM_RW, insn->vaddr);
+	}
+	
 	//DEBUG
 	GString *assembler = decode_assembler(tb);
 	g_string_append_printf(out, "[TB Info] tb id: %8lx\n[TB Info] tb size: %i\n[TB Info] Assembler:\n%s", tb->vaddr, tb->n, assembler->str);
@@ -992,8 +1192,13 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 	tb_avl_root = NULL;
 	tb_info_list = NULL;
 	tb_exec_order_list = NULL;
+	num_exec_order = 0;
+	mem_info_list = NULL;
 	exec_callback = 0;
 	first_tb = 0;
+	first_fault_injected = 0;
+	tb_counter = 0;
+	tb_counter_max = 1000;
 	g_autoptr(GString) out = g_string_new("");
 	g_string_printf(out, "QEMU INjection Plugin\n Current Target is %s\n", info->target_name);
 	g_string_append_printf(out, "Current Version of QEMU Plugin is %i, Min Version is %i\n", info->version.cur, info->version.min);
@@ -1046,10 +1251,26 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 		goto ABBORT;
 	}
 	g_string_append(out, "Done\n");
+	g_string_append(out, "[Info] Initialise mem avl tree ....");
+	mem_avl_root = avl_create( &mem_comparison_func, NULL, NULL);
+	if(mem_avl_root == NULL)
+	{
+		g_string_append(out, "ERROR\n[ERROR] mem avl tree initialisation failed");
+		goto ABBORT;
+	}
+	g_string_append(out, "Done\n");
 	g_string_append_printf(out, "[Start]: Reached end of Initialisation, starting guest now\n");
 	qemu_plugin_outs(out->str);
 	return 0;
 ABBORT:
+	if(mem_avl_root != NULL)
+	{
+		avl_destroy(mem_avl_root, NULL);
+	}
+	if(tb_avl_root != NULL)
+	{
+		avl_destroy(tb_avl_root, NULL);
+	}
 	delete_fault_trigger_addresses();
 	delete_fault_queue();
 	g_string_append(out, "[ERROR]: Somthing went wrong. Abborting now!\n");
