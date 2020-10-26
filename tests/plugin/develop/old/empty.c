@@ -25,6 +25,8 @@
 
 int flag = 0;
 
+void * stuff;
+
 QEMU_PLUGIN_EXPORT int qemu_plugin_version = QEMU_PLUGIN_VERSION;
 
 static void tb_exec_cb(unsigned int vcpu_index, void *userdata)
@@ -59,7 +61,7 @@ static void vcpu_memaccess(unsigned int vcpu_index, qemu_plugin_meminfo_t info, 
 		char tmp[4];
 		cpu_memory_rw_debug(current_cpu, vaddr, tmp, 4, 0);
 		g_string_append_printf(out, "Original value: %08x\n", (tmp[0]<< 0*8)|(tmp[1]<< 1*8)|(tmp[2]<< 2*8)|(tmp[3]<< 3*8));
-		tmp[0]++;
+//		tmp[0]++;
 		//tmp[1]++;
 		//tmp[2]++;
 		//tmp[3]++;
@@ -109,7 +111,7 @@ static void vcpu_tb_trans(qemu_plugin_id_t id, struct qemu_plugin_tb *tb)
 			{
 				return;
 			}
-			//tmp[0]++;
+			tmp[0]++;
 			cpu_memory_rw_debug(cpu, 0x80000dc, tmp, 2, 1);
 			qemu_plugin_register_vcpu_insn_exec_cb( insn, insn_exec_cb, QEMU_PLUGIN_CB_RW_REGS, NULL);
 			//			*(((char *)tb->haddr1  ) + i*2) = (*((char *)tb->haddr1 + i*2) + 1);	
@@ -150,6 +152,7 @@ static void vcpu_init_cb(qemu_plugin_id_t id, unsigned int vcpu_index)
 	g_autoptr(GString) out = g_string_new("");
 	g_string_printf(out, "CPU Initialised\n");
 	qemu_plugin_outs(out->str);
+//	free(stuff);
 	/*Read value, add 1 and then write it back*/
 	/*	CPUState *cpu = current_cpu;
 		char tmp[2];
@@ -194,5 +197,6 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 	qemu_plugin_register_vcpu_exit_cb( id, vcpu_exit_cb); 
 	flag = 0;
 	qemu_plugin_outs(out->str);
+	stuff = malloc(sizeof(int) * 40);
 	return 0;
 }
