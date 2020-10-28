@@ -211,7 +211,7 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_version = QEMU_PLUGIN_VERSION;
 static void memaccess_data_cb(unsigned int vcpu_index, qemu_plugin_meminfo_t info, uint64_t vddr, void *userdata)
 {
 	mem_info_t tmp;
-	tmp.ins_address = (userdata);
+	tmp.ins_address = (uint64_t)(userdata);
 	mem_info_t *mem_access = avl_find(mem_avl_root,&tmp);
 	if(mem_access == NULL)
 	{
@@ -222,10 +222,11 @@ static void memaccess_data_cb(unsigned int vcpu_index, qemu_plugin_meminfo_t inf
 		mem_access->direction = qemu_plugin_mem_is_store(info);
 		mem_access->counter = 0;
 		avl_insert(mem_avl_root, mem_access);
+		mem_access->next = mem_info_list;
+		mem_info_list = mem_access;
 	}
 	mem_access->counter++;
-	mem_access->next = mem_info_list;
-	mem_info_list = mem_access;
+
 }
 
 /**
@@ -312,7 +313,7 @@ GString* decode_assembler(struct qemu_plugin_tb *tb)
 	for(int i = 0; i < tb->n; i++)
 	{
 		struct qemu_plugin_insn * insn = qemu_plugin_tb_get_insn(tb, i);
-		g_string_append_printf(out, "[%8lx]: %s\n", insn->vaddr, qemu_plugin_insn_disas(insn));
+		g_string_append_printf(out, "[%8lx]: %s !!", insn->vaddr, qemu_plugin_insn_disas(insn));
 	}
 	return out;
 }
@@ -939,12 +940,12 @@ int plugin_write_to_data_pipe(char *str, size_t len)
 void plugin_dump_tb_information()
 {
 	g_autoptr(GString) out = g_string_new("");
-	g_string_printf(out, "[TB Information]:\n");
+	g_string_printf(out, "$$$[TB Information]:\n");
 	plugin_write_to_data_pipe(out->str, out->len);
 	tb_info_t *item = tb_info_list;
 	while(item != NULL)
 	{
-		g_string_printf(out, "%lx | %lx | %lx | %lx | %s \n", item->base_address, item->size, item->instruction_count, item->num_of_exec, item->assembler->str );
+		g_string_printf(out, "$$0x%lx | 0x%lx | 0x%lx | 0x%lx | %s \n", item->base_address, item->size, item->instruction_count, item->num_of_exec, item->assembler->str );
 		plugin_write_to_data_pipe(out->str, out->len);
 		item = item->next;
 	//	free(tb_info_list);
@@ -957,12 +958,12 @@ void plugin_dump_tb_information()
 void plugin_dump_tb_exec_order()
 {
 	g_autoptr(GString) out = g_string_new("");
-	g_string_printf(out, "[TB Exec]:\n");
+	g_string_printf(out, "$$$[TB Exec]:\n");
 	plugin_write_to_data_pipe(out->str, out->len);
 	tb_exec_order_t *item =  tb_exec_order_list;
 	while(item != NULL)
 	{
-		g_string_printf(out, " %lx | %li \n", item->tb_info->base_address, num_exec_order);
+		g_string_printf(out, "$$ 0x%lx | %li \n", item->tb_info->base_address, num_exec_order);
 		plugin_write_to_data_pipe(out->str, out->len);
 		item = item->prev;
 		num_exec_order--;
@@ -974,13 +975,13 @@ void plugin_dump_tb_exec_order()
 void plugin_dump_mem_information()
 {
 	g_autoptr(GString) out = g_string_new("");
-	g_string_printf(out, "[Mem Information]: \n");
+	g_string_printf(out, "$$$[Mem Information]:\n");
 	plugin_write_to_data_pipe(out->str, out->len);
 
 	mem_info_t *item = mem_info_list;
-	while(item != NULL);
+	while(item != NULL)
 	{
-		g_string_printf(out, " %lx | %lx | %lx | %x | %lx \n", item->ins_address, item->size, item->memmory_address, item->direction, item->counter);
+		g_string_printf(out, "$$ 0x%lx | 0x%lx | 0x%lx | 0x%x | 0x%lx \n", item->ins_address, item->size, item->memmory_address, item->direction, item->counter);
 		plugin_write_to_data_pipe(out->str, out->len);
 		item = item->next;
 		//free(mem_info_list);
@@ -991,21 +992,27 @@ void plugin_dump_mem_information()
 
 void plugin_end_information_dump()
 {
+	int *error = NULL;
 	qemu_plugin_outs("[DEBUG]: Start printing to data pipe tb information\n");
 	plugin_dump_tb_information();
 	qemu_plugin_outs("[DEBUG]: Start printing to data pipe tb exec\n");
 	plugin_dump_tb_exec_order();
 	qemu_plugin_outs("[DEBUG]: Start printing to data pipe tb mem\n");
 	plugin_dump_mem_information();
-	qemu_plugin_outs("[DEBUG]: Information now in pipe, start deleting information in memory");
+	qemu_plugin_outs("[DEBUG]: Information now in pipe, start deleting information in memory\n");
+	qemu_plugin_outs("[DEBUG]: Delete tb_info\n");
 	tb_info_free();
+	qemu_plugin_outs("[DEBUG]: Delete tb_exec\n");
 	tb_exec_order_free();
+	qemu_plugin_outs("[DEBUG]: Delte mem\n");
 	mem_info_free();
 	qemu_plugin_outs("[DEBUG]: This is the End\n");
-	while(1)
-	{
-		mem_info_free();
-	}
+	plugin_write_to_data_pipe("$$$[END]", 8);
+	//Insert deliberate error to cancle exec
+	//TODO Build good exit to qemu
+	//while(1);
+	*error = 0;
+	//mem_info_free();
 	//Now we will start to dump information
 	//
 }
