@@ -101,6 +101,12 @@ tb_info_t *tb_info_list;
 /*AVL global variables*/
 struct avl_table *tb_avl_root;
 
+/**
+ * tb_info_free()
+ *
+ * function to delete the translation block information
+ * structs from memory. Also deletes the avl tree
+ */
 void tb_info_free()
 {
 	tb_info_t *item;
@@ -114,6 +120,7 @@ void tb_info_free()
 	tb_avl_root = NULL;
 }
 
+
 typedef struct tb_exec_order_t tb_exec_order_t;
 typedef struct tb_exec_order_t
 {
@@ -124,6 +131,12 @@ typedef struct tb_exec_order_t
 tb_exec_order_t *tb_exec_order_list;
 uint64_t num_exec_order;
 
+/**
+ * tb_exec_order_free()
+ *
+ * free linked list of tb_exec_order_t elements. It does not free the tb_info_t inside.
+ * These must be freed seperatly with tb_info_free()
+ */
 void tb_exec_order_free()
 {
 	tb_exec_order_t *item;
@@ -136,7 +149,19 @@ void tb_exec_order_free()
 }
 
 
-/*Needed for avl library. it will determen which element is bigger*/
+/**
+ * tb_comparison_func
+ *
+ * Needed for avl library. it will determen which element is bigger of type tb_info_t.
+ * see documentation of gnuavl lib for more information
+ *
+ * tbl_a: Element a to be compared
+ * tbl_b: Element b to be compared
+ * tbl_param: is not used by this avl tree. But can be used to give additional information
+ * to the comparison function
+ *
+ * return if negativ, a is bigger, if possitiv b is bigger. If 0 it is the same element
+ */
 int tb_comparison_func(const void *tbl_a, const void *tbl_b, void * tbl_param)
 {
 	//g_autoptr(GString) out = g_string_new("");
@@ -171,6 +196,12 @@ mem_info_t *mem_info_list;
 
 struct avl_table *mem_avl_root;
 
+/**
+ * mem_info_free()
+ *
+ * This function deltes all mem info elemts in the global linkes list mem_info_list.
+ * Furthermore it deletes the associated avl tree
+ */
 void mem_info_free()
 {
 	mem_info_t *item;
@@ -184,7 +215,18 @@ void mem_info_free()
 	mem_avl_root = NULL;
 }
 
-// Compare ins address. Substraction does it
+/**
+ * mem_comparison_func()
+ *
+ * This function compares two elements of mem_info_t. It returns signifies which element is bigger
+ * needed by gnuavl lib. Please see the gnuavl lib for more information
+ *
+ * tbl_a: Element a to be compared
+ * tbl_b: Element b to be compared
+ * tbl_param: Not used. Can be used to give additional information to comparison function
+ *
+ * return: if negativ a is bigger, if possitiv b is bigger, if zero a = b
+ */
 int mem_comparison_func(const void *tbl_a, const void *tbl_b, void *tbl_param)
 {
 	const mem_info_t *mem_a = tbl_a;
@@ -192,21 +234,28 @@ int mem_comparison_func(const void *tbl_a, const void *tbl_b, void *tbl_param)
 	return mem_a->ins_address - mem_b->ins_address;
 }
 
-
+/*Other potential usefull functions needed for gnuavl*/
 //void tbl_item_func(void *tbl_item, void *tbl_param)
-//{
-//}
-
 //void * tbl_copy_func(void *tbl_item, void *tbl_param);
 //void tbl_destry_funv(void *tbl_itme, void *tbl_param);
-/*QEMU plugin Version control*/
 
+/*QEMU plugin Version control. This is needed to specify for which qemu api version this plugin was build.
+ * Qemu woll block, if version is to old to handle incampatibility inside the api
+ */
 QEMU_PLUGIN_EXPORT int qemu_plugin_version = QEMU_PLUGIN_VERSION;
 
 
 /**
  * memaccess_data_cb
  *
+ * This is the calback, that is called for memaccess by the target cpu.
+ * It will search the avl tree, if this memory access is already inside the avl tree. If not it creates the element
+ * and inserts it into the tree. then it increments the counter
+ *
+ * vcpu_index: Index of vcpu that made memory access
+ * info: API object needed to query for additional information inside the api
+ * vddr: Address in Memory of the memory operation
+ * userdata: Data provided by user. In this case it is the address of the instruction, that triggerd the memory operation
  */
 static void memaccess_data_cb(unsigned int vcpu_index, qemu_plugin_meminfo_t info, uint64_t vddr, void *userdata)
 {
@@ -262,7 +311,16 @@ int parse_args(int argc, char **argv, GString *out)
 	return 0;
 }
 
-
+/**
+ * char_to_uint64()
+ *
+ * Converts the characters of string provided by c from ascii hex to ascii
+ *
+ * c: pointer to string
+ * size_c: length of string
+ *
+ * return number converted
+ */
 uint64_t char_to_uint64(char *c, int size_c)
 {
 	g_autoptr(GString) out = g_string_new("");
@@ -284,7 +342,7 @@ uint64_t char_to_uint64(char *c, int size_c)
 /**
  * print_assembler
  *
- * print assembler to consol
+ * print assembler to console from translation block
  */
 void print_assembler(struct qemu_plugin_tb *tb)
 {
@@ -301,11 +359,14 @@ void print_assembler(struct qemu_plugin_tb *tb)
 }
 
 /**
- * decode_assembler
+ * decode_assembler()
  *
- * build string 
+ * build string that is later provided to python. !! is the replacement for \n, as this would directly affect decoding.
+ * 
+ * tb: tb struct, that contains the information needed to get the assembler for the instructions inside the translation block.
+ *
+ * return: gstring object, that contains the assembly instructions. The object needs to be deleted by the function that called this function
  */
-
 GString* decode_assembler(struct qemu_plugin_tb *tb)
 {
 	GString* out = g_string_new("");
@@ -322,7 +383,7 @@ GString* decode_assembler(struct qemu_plugin_tb *tb)
  *
  * qemu_setup_config
  *
- * This function reads the config from the config pipe. It will only read one fault conviguration.
+ * This function reads the config from the config pipe. It will only read one fault configuration.
  * If multiple fault should be used, call this function multiple times
  */
 
@@ -421,6 +482,14 @@ int qemu_setup_config()
  *
  * This function appends one fault to the linked list. 
  *
+ * fault_address: address of fault
+ * fault_type: type of fault. see enum on implemented targets
+ * fault_model: model of fault. see enum on implemented fault models
+ * fault_lifetime: How long should the fault reside. 0 means indefinitely
+ * fault_mask: bitmask on which bits should be targeted.
+ * fault_trigger_address: Address of trigger location. Fault will be injected if this location is reached
+ * fault_trigger_hitcounter: set how many times the location needs to be reached before the fault is injected
+ * 
  * return -1 if fault
  */
 int add_fault(uint64_t fault_address, uint64_t fault_type, uint64_t fault_model, uint64_t fault_lifetime, uint8_t fault_mask[16], uint64_t fault_trigger_address, uint64_t fault_trigger_hitcounter )
@@ -549,7 +618,7 @@ int register_fault_trigger_addresses()
 	current = first_fault;
 	fault_number = i;
 	g_string_append_printf(out, "[DEBUG]: Fault number %i\n", fault_number);
-	/* Reserve Memory vor "Vector"*/
+	/* Reserve Memory for "Vector"*/
 	fault_trigger_addresses = malloc(sizeof(uint64_t) * fault_number);
 	fault_addresses = malloc(sizeof(uint64_t) * fault_number);
 	if(fault_trigger_addresses == NULL || fault_addresses == NULL)
@@ -573,7 +642,9 @@ int register_fault_trigger_addresses()
 }
 
 /**
- * delete_fault_trigger_address
+ * delete_fault_trigger_address()
+ *
+ * delete the vector containing the fault triggers
  */
 void delete_fault_trigger_addresses()
 {
@@ -584,6 +655,9 @@ void delete_fault_trigger_addresses()
  * process_set1_memory
  *
  * Read memory, then apply set1 according to mask, then write memory back
+ * 
+ * address: baseaddress of lowest byte
+ * mask: mask containing which bits need to be flipped to 1
  */
 void process_set1_memory(uint64_t address, uint8_t  mask[])
 {
@@ -606,6 +680,9 @@ void process_set1_memory(uint64_t address, uint8_t  mask[])
  * process_set0_memory
  *
  * Read memory, then apply set0 according to mask, then write memory back
+ *
+ * address: baseaddress of fault
+ * mask: location mask of bits set to 0 
  */
 void process_set0_memory(uint64_t address, uint8_t  mask[])
 {
@@ -629,6 +706,9 @@ void process_set0_memory(uint64_t address, uint8_t  mask[])
  * process_toggle_memory
  *
  * Read memory, then toggle bits to mask, then write memory back
+ *
+ * address: baseaddress of fault
+ * mask: location mask of bits to be toggled
  */
 void process_toggle_memory(uint64_t address, uint8_t  mask[])
 {
@@ -650,7 +730,8 @@ void process_toggle_memory(uint64_t address, uint8_t  mask[])
 /**
  * register_exec_callback
  *
- * This function is called, when the exec callback is needed.
+ * This function is called, when the exec callback is needed. This vector is used, if fault is inserted.
+ * It is checked to locate the faults struct, that where inserted
  */
 void register_exec_callback(uint64_t address)
 {
@@ -663,7 +744,15 @@ void register_exec_callback(uint64_t address)
 	exec_callback++;
 }
 
-
+/**
+ * inject_memory_fault
+ *
+ * injects fault into memory regions
+ * Reads current struct to determen the location, model, and mask of fault.
+ * Then performes the fault injection
+ *
+ * current: Struct address containing the fault information
+ */
 void inject_memory_fault(fault_list_t * current)
 {
 	g_autoptr(GString) out = g_string_new("");
@@ -688,7 +777,11 @@ void inject_memory_fault(fault_list_t * current)
 
 }
 
-
+/**
+ * inject_register_fault
+ *
+ * Inject fault into registers. Reads the current string and determens the register attacked, loads it and performes the fault required
+ */
 void inject_register_fault(fault_list_t * current)
 {
 	g_autoptr(GString) out = g_string_new("");
@@ -725,6 +818,8 @@ void inject_register_fault(fault_list_t * current)
  * inject_fault
  *
  * At this point the fault need to be injected. This is the function to select the right model and call injection function
+ *
+ * current: Struct address containing the fault information needed
  */
 void inject_fault(fault_list_t * current)
 {
@@ -762,6 +857,7 @@ void inject_fault(fault_list_t * current)
  * handle_first_tb_fault_insertion
  *
  * This function is called in the first used tb block
+ * This function is maybe a TODO
  */
 void handle_first_tb_fault_insertion()
 {
@@ -795,8 +891,7 @@ void handle_first_tb_fault_insertion()
 /*
  * calculate_bytesize_instructions
  *
- * Function to calculate size of TB. This is currently done 
- * by simple multiply on the assumption of thumb2 instructions
+ * Function to calculate size of TB. It uses the information of the tb and the last insn to determen the bytesize of the instructions inside the translation block
  */
 size_t calculate_bytesize_instructions(struct qemu_plugin_tb *tb)
 {
@@ -815,6 +910,7 @@ size_t calculate_bytesize_instructions(struct qemu_plugin_tb *tb)
  * trigger_insn_cb
  *
  * This function is registered on insn exec of trigger
+ * It will determine, if the current fault should be injected or needs to wait. If yes will call the fault injection function 
  */
 void trigger_insn_cb(unsigned int vcpu_index, void *vcurrent)
 {
@@ -839,7 +935,7 @@ void trigger_insn_cb(unsigned int vcpu_index, void *vcurrent)
 }
 
 /**
- *
+ * TODO remove?
  */
 void tb_exec_cb(unsigned int vcpu_index, void *userdata)
 {
@@ -852,6 +948,9 @@ void tb_exec_cb(unsigned int vcpu_index, void *userdata)
  *  evaluate_trigger
  *
  *  This function takes the trigger address number and evaluates the trigger condition
+ *  
+ *  tb: Struct containing information about the translation block
+ *  trigger_address_num: the location in the trigger vector. is used to find the current fault
  */
 void evaluate_trigger(struct qemu_plugin_tb *tb,int trigger_address_number)
 {
@@ -874,7 +973,7 @@ void evaluate_trigger(struct qemu_plugin_tb *tb,int trigger_address_number)
 	print_assembler(tb);
 }
 
-// Calback for instructin exec
+// Calback for instructin exec TODO: remove?
 void insn_exec_cb(unsigned int vcpu_index, void *userdata)
 {
 	g_autoptr(GString) out = g_string_new("");
@@ -887,7 +986,10 @@ void insn_exec_cb(unsigned int vcpu_index, void *userdata)
 /**
  * eval_exec_callback
  *
+ * This function evaluates if the exec callback is needed to be registered. Also makes sure that fault is reverted, if lifetime is zero
  *
+ * tb: Information provided by the api about the translated block
+ * exec_callback_number: Position in vector. Needed to find fault struct
  */
 void eval_exec_callback(struct qemu_plugin_tb *tb, int exec_callback_number)
 {
@@ -899,6 +1001,7 @@ void eval_exec_callback(struct qemu_plugin_tb *tb, int exec_callback_number)
 
 		*(fault_addresses + exec_callback_number) = 0;
 		qemu_plugin_outs("Remove exec callback\n");
+		//TODO: revert fault
 	}
 	else
 	{
@@ -916,6 +1019,17 @@ void eval_exec_callback(struct qemu_plugin_tb *tb, int exec_callback_number)
 	}
 }
 
+
+/**
+ * plugin_write_to_data_pipe
+ *
+ * Function that handles the write to the data pipe
+ * 
+ * str: pointer to string to be printed
+ * len: length of string to be printed
+ * 
+ * return negativ if failed
+ */
 int plugin_write_to_data_pipe(char *str, size_t len)
 {
 	g_autoptr(GString) out = g_string_new("");
@@ -937,6 +1051,14 @@ int plugin_write_to_data_pipe(char *str, size_t len)
 	return 0;
 }
 
+
+/**
+ * plugin_dump_tb_information()
+ *
+ * Function that reads the tb information structs and prints each to the data pipe. Furthermore writes the command to python that it knows tb information is provided
+ *
+ *
+ */
 void plugin_dump_tb_information()
 {
 	g_autoptr(GString) out = g_string_new("");
@@ -955,6 +1077,11 @@ void plugin_dump_tb_information()
 	//tb_info_t *tb_info_list;
 }
 
+/**
+ * plugin_dump_tb_exec_order
+ *
+ * Print the order of translation blocks executed. Also provide a counter number, that it can be later resorted in python
+ */
 void plugin_dump_tb_exec_order()
 {
 	g_autoptr(GString) out = g_string_new("");
@@ -972,6 +1099,11 @@ void plugin_dump_tb_exec_order()
 	}
 }
 
+/**
+ * plugin_dump_mem_information
+ *
+ * Write collected inforation about the memory accesses to data pipe
+ */
 void plugin_dump_mem_information()
 {
 	g_autoptr(GString) out = g_string_new("");
@@ -989,7 +1121,12 @@ void plugin_dump_mem_information()
 	}
 }
 
-
+/**
+ * plugin_end_information_dump
+ *
+ * This function first writes all collected data to data pipe, then deletes all information structs
+ * Then it will cause a segfault to crash qemu to end it for the moment
+ */
 void plugin_end_information_dump()
 {
 	int *error = NULL;
@@ -1017,6 +1154,14 @@ void plugin_end_information_dump()
 	//
 }
 
+/**
+ * tb_exec_data_event
+ * 
+ * Function to collect the exec data about translation blocks
+ *
+ * vcpu_index: current index of cpu the callback was triggered from
+ * vcurrent: pointer to tb_info struct of the current tb
+ */
 void tb_exec_data_event(unsigned int vcpu_index, void *vcurrent)
 {
 	tb_info_t *tb_info = vcurrent;
@@ -1080,6 +1225,15 @@ void handle_tb_translate_event(struct qemu_plugin_tb *tb)
 	}
 }
 
+/**
+ * handle_tb_translate_data
+ *
+ * Find the current info struct of translation blocks inside avl tree.
+ * If there is no strict in avl, create struct and place it into avl.
+ * Also register tb_callback_event to fill in runtime information
+ *
+ * tb: API struct containing information about the translation block
+ */
 void handle_tb_translate_data(struct qemu_plugin_tb *tb)
 {
 	g_autoptr(GString) out = g_string_new("");
@@ -1184,7 +1338,8 @@ static void vcpu_translateblock_translation_event(qemu_plugin_id_t id, struct qe
  *
  * qemu_plugin_install
  *
- * This is the first called function. 
+ * This is the first called function.
+ * It needs to setup all needed parts inside the plugin
  *
  */
 QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id, 
