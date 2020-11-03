@@ -1334,6 +1334,106 @@ static void vcpu_translateblock_translation_event(qemu_plugin_id_t id, struct qe
 	handle_tb_translate_data(tb);
 }
 
+void readout_controll_pipe(GString *out)
+{
+	char c = ' ';
+	int ret = 0;
+	while(c != '\n')
+	{
+		ret = read(pipes->control, &c, 1);
+		if(ret != 1)
+		{
+			qemu_plugin_outs("[DEBUG]: Readout config no character found or too much read\n");
+			c = ' ';
+		}
+		else
+		{
+			g_string_append_c(out, c);
+		}
+	}
+	//qemu_plugin_outs(out->str);
+	
+}
+
+int readout_controll_mode(GString *conf)
+{
+	if(strstr(conf->str, "[Config]"))
+	{
+		return 1;
+	}
+	if(strstr(conf->str, "[Start]"))
+	{
+		return 2;
+	}
+	return -1;
+}
+
+int readout_controll_config(GString *conf)
+{
+	if(strstr(conf->str, "max_duration: "))
+	{
+		//convert number in string to number
+		tb_counter_max = strtoimax(strstr(conf->str,"max_duration: ") + 13, NULL, 0 );
+		return 1;
+	}
+	if(strstr(conf->str, "num_faults: "))
+	{
+		//convert number in string to number
+		fault_number = strtoimax(strstr(conf->str,"num_faults: ") + 11, NULL, 0 );
+		return 1;
+	}
+	return -1;
+	
+}
+
+int readout_controll_qemu()
+{
+	g_autoptr(GString) conf = g_string_new("");
+	char c = ' ';
+	int ret = 0;
+	int mode = 0;
+	while(mode != 2)
+	{
+		g_string_printf(conf, " ");
+		readout_controll_pipe(conf);
+		if(strstr(conf->str, "$$$"))
+		{
+			mode = readout_controll_mode(conf);
+			if(mode == -1)
+			{
+				qemu_plugin_outs("[ERROR]: Unknown Command\n");
+				return -1;
+			}
+		}
+		else
+		{
+			if(strstr(conf->str, "$$"))
+			{
+				if(mode == 1)
+				{
+					if(readout_controll_config(conf) == -1)
+					{
+						qemu_plugin_outs("[ERROR]: Unknown Parameter\n");
+						return -1;
+					}
+				}
+			}
+		}
+
+	}
+	qemu_plugin_outs("[DEBUG]: Finished readout controll. Now start readout of config\n");
+	for(int i = 0; i < fault_number; i++)
+	{
+		if(qemu_setup_config() < 0)
+		{
+			qemu_plugin_outs("[ERROR]: Somthing went wrong in readout of config pipe\n");
+			return -1;
+		}
+	}
+	return 1;
+}
+
+
 /**
  *
  * qemu_plugin_install
@@ -1389,7 +1489,8 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 	g_string_append_printf(out, "[Info]: Readout config FIFO\n");
 	qemu_plugin_outs(out->str);
 	g_string_printf(out, " ");
-	if( qemu_setup_config() < 0)
+//	if( qemu_setup_config() < 0)
+	if( readout_controll_qemu() < 0)
 	{
 		goto ABBORT;
 	}
