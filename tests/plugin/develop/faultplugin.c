@@ -48,6 +48,7 @@ typedef struct
 {
 	uint64_t address; //uint64_t?
 	uint64_t hitcounter;
+	uint64_t trignum;
 } fault_trigger_t;
 
 typedef struct
@@ -560,14 +561,27 @@ uint64_t get_fault_trigger_address(fault_list_t * current)
 	return current->fault.trigger.address;
 }
 
-fault_list_t * get_fault_struct_by_trigger(uint64_t fault_trigger_address)
+/**
+ * set_fault_trigger_num
+ *
+ * Function sets the trigger num field. This is done to sepperate between two triggers with the same address
+ */
+void set_fault_trigger_num(fault_list_t * current, uint64_t trignum)
+{
+	current->fault.trigger.trignum = trignum;
+}
+
+fault_list_t * get_fault_struct_by_trigger(uint64_t fault_trigger_address, uint64_t fault_trigger_number)
 {
 	fault_list_t * current = first_fault;
 	while(current != NULL)
 	{
 		if(current->fault.trigger.address == fault_trigger_address)
 		{
-			return current;
+			if(current->fault.trigger.trignum == fault_trigger_number)
+			{
+				return current;
+			}
 		}
 		current = current->next;
 	}
@@ -632,6 +646,7 @@ int register_fault_trigger_addresses()
 	{
 		/* Fill Vector with value*/
 		*(fault_trigger_addresses + j) = get_fault_trigger_address(current);
+		set_fault_trigger_num(current, j);
 		*(fault_addresses + j) = 0;	
 		g_string_append_printf(out, "[Fault]: fault trigger addresses: %p\n", fault_trigger_addresses+j);
 		g_string_append_printf(out, "[Fault]: fault addresses: %p\n", fault_addresses+j);
@@ -873,13 +888,14 @@ void handle_first_tb_fault_insertion()
 		{
 			qemu_plugin_outs("Insert first fault\n");
 			inject_fault(current);
-			for(int i = 0; i < fault_number; i++)
+			*(fault_trigger_addresses + current->fault.trigger.trignum) = 0; //Remove trigger from vector
+			/*for(int i = 0; i < fault_number; i++)
 			{
 				if(*(fault_trigger_addresses + i) == current->fault.trigger.address)
 				{
 					*(fault_trigger_addresses + i) = 0; //Remove trigger from vector
 				}
-			}
+			}*/
 		}
 		current = return_next( current);
 	}
@@ -926,6 +942,7 @@ void trigger_insn_cb(unsigned int vcpu_index, void *vcurrent)
 			/*Trigger met, Inject fault*/
 			qemu_plugin_outs("Trigger reached level, inject fault\n");
 			inject_fault(current);
+			*(fault_trigger_addresses + current->fault.trigger.trignum) = 0;
 		}
 	}
 	else
@@ -956,8 +973,8 @@ void evaluate_trigger(struct qemu_plugin_tb *tb,int trigger_address_number)
 {
 
 	/*Get fault description*/
-	fault_list_t *current = get_fault_struct_by_trigger((uint64_t) *(fault_trigger_addresses + trigger_address_number));
-	/* Trigger not met. Register callback*/
+	fault_list_t *current = get_fault_struct_by_trigger((uint64_t) *(fault_trigger_addresses + trigger_address_number), trigger_address_number);
+	/* Trigger tb met, now registering callback for exec to see, if we need to inject fault*/
 	for(int i = 0; i < tb->n; i++)
 	{
 		struct qemu_plugin_insn *insn = qemu_plugin_tb_get_insn(tb, i);
