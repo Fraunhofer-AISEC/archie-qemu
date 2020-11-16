@@ -58,6 +58,7 @@ typedef struct
 	uint64_t model;
 	uint64_t lifetime;
 	uint8_t mask[16]; // uint8_t array?
+	uint8_t restoremask[16];
 	fault_trigger_t trigger;
 } fault_t;
 
@@ -84,6 +85,13 @@ int 	first_tb;
 int first_fault_injected;
 int tb_counter;
 int tb_counter_max;
+
+/*Start point struct (Using fault struct)*/
+fault_trigger_t start_point;
+
+/*End point struct (suing fault struct)*/
+fault_trigger_t end_point;
+
 
 /*Output TB data structures*/
 typedef struct tb_info_t tb_info_t;
@@ -510,7 +518,8 @@ int add_fault(uint64_t fault_address, uint64_t fault_type, uint64_t fault_model,
 	new_fault->fault.trigger.address = fault_trigger_address;
 	new_fault->fault.trigger.hitcounter = fault_trigger_hitcounter;
 	for(int i = 0; i < 16; i++)
-	{
+	{	
+		new_fault->fault.restoremask[i] = 0;
 		new_fault->fault.mask[i] = fault_mask[i];
 	}
 	if(first_fault != NULL)
@@ -588,14 +597,17 @@ fault_list_t * get_fault_struct_by_trigger(uint64_t fault_trigger_address, uint6
 	return NULL;
 }
 
-fault_list_t * get_fault_struct_by_exec(uint64_t exec_callback_address)
+fault_list_t * get_fault_struct_by_exec(uint64_t exec_callback_address, uint64_t exec_number)
 {
 	fault_list_t * current = first_fault;
 	while(current != NULL)
 	{
 		if(current->fault.address == exec_callback_address)
 		{
-			return current;
+			if(current->fault.trigger.trignum == exec_number)
+			{
+				return current;
+			}
 		}
 		current = current->next;
 	}
@@ -674,20 +686,47 @@ void delete_fault_trigger_addresses()
  * address: baseaddress of lowest byte
  * mask: mask containing which bits need to be flipped to 1
  */
-void process_set1_memory(uint64_t address, uint8_t  mask[])
+void process_set1_memory(uint64_t address, uint8_t  mask[], uint8_t restoremask[])
 {
 	uint8_t value[16];
-	CPUState *cpu = current_cpu;
 	int ret;
-	ret = cpu_memory_rw_debug( cpu, address, value, 16, 0);
+	//ret = cpu_memory_rw_debug( cpu, address, value, 16, 0);
+	ret = plugin_rw_memory_cpu( address, value, 16, 0);
 	for(int i = 0; i < 16; i++)
 	{
-		value[i] = value[i] | mask[i];
+		restoremask[i] = value[i] & mask[i]; //generate restoremaks
+		value[i] = value[i] | mask[i]; //inject fault
 	}
-	ret += cpu_memory_rw_debug( cpu, address, value, 16, 1);
-	if (ret < 0)
+	//ret += cpu_memory_rw_debug( cpu, address, value, 16, 1);
+	ret += plugin_rw_memory_cpu( address, value, 16, 1);
+	if (ret < 32)
 	{
-		qemu_plugin_outs("Somthing went wrong in read/write to cpu in process_set0_memory\n");
+		qemu_plugin_outs("Somthing went wrong in read/write to cpu in process_set1_memory\n");
+	}
+}
+
+/**
+ * process_reverse_fault
+ *
+ * Read memory, then apply inverse set0 according to mask, then write memory back
+ *
+ * address: baseaddress of fault
+ * maks: location mask of bits set to 0 for reverse
+ */
+void process_reverse_fault(uint64_t address, uint8_t mask[], uint8_t restoremask[])
+{
+	uint8_t value[16];
+	int ret;
+	ret = plugin_rw_memory_cpu( address, value, 16, 0);
+	for(int i = 0; i < 16; i++)
+	{
+		value[i] = value[i] & ~(mask[i]); //clear value in mask position
+		value[i] = value[i] | restoremask[i]; // insert restoremask to restore positions
+	}
+	ret += plugin_rw_memory_cpu( address, value, 16, 1);
+	if (ret < 32)
+	{
+		qemu_plugin_outs("Somthing went wrong in read/write to cpu in process_reverse_fault\n");
 	}
 }
 
@@ -699,23 +738,27 @@ void process_set1_memory(uint64_t address, uint8_t  mask[])
  * address: baseaddress of fault
  * mask: location mask of bits set to 0 
  */
-void process_set0_memory(uint64_t address, uint8_t  mask[])
+void process_set0_memory(uint64_t address, uint8_t  mask[], uint8_t restoremask[])
 {
 	uint8_t value[16];
-	CPUState *cpu = current_cpu;
 	int ret;
 	/*TODO Return validate*/
-	ret = cpu_memory_rw_debug( cpu, address, value, 16, 0);
+	//ret = cpu_memory_rw_debug( cpu, address, value, 16, 0);
+	ret = plugin_rw_memory_cpu( address, value, 16, 0);
 	for(int i = 0; i < 16; i++)
 	{
-		value[i] = value[i] & ~(mask[i]);
+		restoremask[i] = value[i] & mask[i]; //generate restore mask
+		value[i] = value[i] & ~(mask[i]); //inject fault
 	}
-	ret += cpu_memory_rw_debug( cpu, address, value, 16, 1);
-	if (ret < 0)
+	//ret += cpu_memory_rw_debug( cpu, address, value, 16, 1);
+	ret += plugin_rw_memory_cpu( address, value, 16, 1);
+	if (ret < 32)
 	{
 		qemu_plugin_outs("Somthing went wrong in read/write to cpu in process_set0_memory\n");
 	}
 }
+
+
 
 /**
  * process_toggle_memory
@@ -725,20 +768,22 @@ void process_set0_memory(uint64_t address, uint8_t  mask[])
  * address: baseaddress of fault
  * mask: location mask of bits to be toggled
  */
-void process_toggle_memory(uint64_t address, uint8_t  mask[])
+void process_toggle_memory(uint64_t address, uint8_t  mask[], uint8_t restoremask[])
 {
 	uint8_t value[16];
-	CPUState *cpu = current_cpu;
 	int ret;
-	ret = cpu_memory_rw_debug( cpu, address - 1, value, 16, 0);
+	//ret = cpu_memory_rw_debug( cpu, address - 1, value, 16, 0);
+	ret = plugin_rw_memory_cpu( address - 1, value, 16, 0);
 	for(int i = 0; i < 16; i++)
 	{
-		value[i] = value[i] ^ mask[i];
+		restoremask[i] = value[i] & mask[i]; //generate restore mask
+		value[i] = value[i] ^ mask[i]; //inject fault
 	}
-	ret += cpu_memory_rw_debug( cpu, address - 1, value, 16, 1);
-	if (ret < 0)
+	//ret += cpu_memory_rw_debug( cpu, address - 1, value, 16, 1);
+	ret += plugin_rw_memory_cpu( address - 1, value, 16, 1);
+	if (ret < 32)
 	{
-		qemu_plugin_outs("Somthing went wrong in read/write to cpu in process_set0_memory\n");
+		qemu_plugin_outs("Somthing went wrong in read/write to cpu in process_toggle_memory\n");
 	}
 }
 
@@ -748,15 +793,16 @@ void process_toggle_memory(uint64_t address, uint8_t  mask[])
  * This function is called, when the exec callback is needed. This vector is used, if fault is inserted.
  * It is checked to locate the faults struct, that where inserted
  */
-void register_exec_callback(uint64_t address)
+int register_exec_callback(uint64_t address)
 {
 	if(exec_callback == fault_number )
 	{
 		qemu_plugin_outs("ERROR: Reached max exec callbacks. Something went totaly wrong!\n");
-		return;
+		return -1;
 	}
 	*(fault_addresses + exec_callback) = address;
 	exec_callback++;
+	return exec_callback - 1;
 }
 
 /**
@@ -775,15 +821,15 @@ void inject_memory_fault(fault_list_t * current)
 	{
 		case SET0:
 			g_string_append_printf(out, "Set 0 fault to Address %lx\n", current->fault.address);
-			process_set0_memory(current->fault.address, current->fault.mask);
+			process_set0_memory(current->fault.address, current->fault.mask, current->fault.restoremask);
 			break;
 		case SET1:
 			g_string_append_printf(out, "Set 1 fault to Address %lx\n", current->fault.address);
-			process_set1_memory(current->fault.address, current->fault.mask);
+			process_set1_memory(current->fault.address, current->fault.mask, current->fault.restoremask);
 			break;
 		case TOGGLE:
 			g_string_append_printf(out, "Toggle fault to Address %lx\n", current->fault.address);
-			process_toggle_memory(current->fault.address, current->fault.mask);
+			process_toggle_memory(current->fault.address, current->fault.mask, current->fault.restoremask);
 			break;
 		default:
 			break;
@@ -809,6 +855,7 @@ void inject_register_fault(fault_list_t * current)
 	uint32_t mask = 0;
 	for(int i = 0; i < 4; i++)
 	{
+		current->fault.restoremask[i] = (reg >> 8*i) & current->fault.mask[i];
 		mask += (current->fault.mask[i] << 8*i);
 	}
 	g_string_printf(out," Changing registert %li from %08x", current->fault.address, reg);
@@ -827,6 +874,21 @@ void inject_register_fault(fault_list_t * current)
 			break;
 	}
 	g_string_append_printf(out, " to %08x\n", reg);
+	qemu_plugin_outs(out->str);
+}
+
+void reverse_register_fault(fault_list_t * current)
+{
+	g_autoptr(GString) out = g_string_new("");
+	uint32_t reg = read_arm_reg(current->fault.address);
+	
+	g_string_printf(out, " Change register %li back from %08x", current->fault.address, reg);
+	for(int i = 0; i < 4; i++)
+	{
+		reg = reg & ~((uint32_t)current->fault.mask[i] << 8*i); // clear manipulated bits
+		reg = reg | ((uint32_t) current->fault.restoremask[i] << 8*i); // restore manipulated bits
+	}
+	g_string_printf(out, " to %08x\n", reg);
 	qemu_plugin_outs(out->str);
 }
 /**
@@ -863,9 +925,48 @@ void inject_fault(fault_list_t * current)
 			//TODO
 		}
 		first_fault_injected = 1;
+		//Remove fault trigger
+		*(fault_trigger_addresses + current->fault.trigger.trignum) = 0;
+		if(current->fault.lifetime != 0)
+		{
+			current->fault.trigger.trignum = register_exec_callback(current->fault.address);
+		}
 	}
 }
 
+/**
+ * reverse_fault
+ *
+ * Reverse the fault injected
+ *
+ * current: fault description 
+ */
+void reverse_fault(fault_list_t * current)
+{
+	g_autoptr(GString) out = g_string_new("");
+	if(current != NULL)
+	{
+		if(current->fault.type == FLASH)
+		{
+			qemu_plugin_outs("[Fault] Reverse flash fault\n");
+			process_reverse_fault(current->fault.address, current->fault.mask, current->fault.restoremask);
+			plugin_flush_tb();
+			qemu_plugin_outs("Flushed tb\n");
+		}
+		if(current->fault.type == SRAM)
+		{
+			qemu_plugin_outs("[Fault] Reverse flash fault\n");
+			process_reverse_fault(current->fault.address, current->fault.mask, current->fault.restoremask);
+			plugin_flush_tb();
+			qemu_plugin_outs("Flushed tb\n");
+		}
+		if(current->fault.type == REGISTER)
+		{
+			qemu_plugin_outs("[Fault] Reverse register fault\n");
+			reverse_register_fault( current);
+		}
+	}
+}
 
 
 /**
@@ -889,13 +990,6 @@ void handle_first_tb_fault_insertion()
 			qemu_plugin_outs("Insert first fault\n");
 			inject_fault(current);
 			*(fault_trigger_addresses + current->fault.trigger.trignum) = 0; //Remove trigger from vector
-			/*for(int i = 0; i < fault_number; i++)
-			{
-				if(*(fault_trigger_addresses + i) == current->fault.trigger.address)
-				{
-					*(fault_trigger_addresses + i) = 0; //Remove trigger from vector
-				}
-			}*/
 		}
 		current = return_next( current);
 	}
@@ -942,7 +1036,6 @@ void trigger_insn_cb(unsigned int vcpu_index, void *vcurrent)
 			/*Trigger met, Inject fault*/
 			qemu_plugin_outs("Trigger reached level, inject fault\n");
 			inject_fault(current);
-			*(fault_trigger_addresses + current->fault.trigger.trignum) = 0;
 		}
 	}
 	else
@@ -952,12 +1045,29 @@ void trigger_insn_cb(unsigned int vcpu_index, void *vcurrent)
 }
 
 /**
- * TODO remove?
+ * tb_exec_cb
+ *
+ * This function 
  */
 void tb_exec_cb(unsigned int vcpu_index, void *userdata)
 {
 	fault_list_t *current = (fault_list_t *) userdata;
-
+	
+	if(current->fault.lifetime != 0)
+	{
+		current->fault.lifetime = current->fault.lifetime - 1;
+		qemu_plugin_outs("Exec eval function reached\n");
+		if(current->fault.lifetime == 0)
+		{
+			qemu_plugin_outs("Exec lifetime fault reached, reverse fault");
+			reverse_fault(current);
+			*(fault_addresses + current->fault.trigger.trignum) = 0;
+		}
+	}
+	else
+	{
+		qemu_plugin_outs("[ERROR]: The lifetime was already 0\n");
+	}
 	//qemu_plugin_outs("[TB] exec tb exec cb\n");
 }
 
@@ -1011,14 +1121,17 @@ void insn_exec_cb(unsigned int vcpu_index, void *userdata)
 void eval_exec_callback(struct qemu_plugin_tb *tb, int exec_callback_number)
 {
 
-	fault_list_t * current = get_fault_struct_by_exec((uint64_t) *(fault_addresses + exec_callback_number));
-
+	fault_list_t * current = get_fault_struct_by_exec((uint64_t) *(fault_addresses + exec_callback_number), exec_callback_number);
+	if(current == NULL)
+	{
+		qemu_plugin_outs("[ERROR]: Found no exec to be called back!\n");
+		return;
+	}
 	if(current->fault.lifetime == 0)
 	{
-
+		//Remove exec callback
 		*(fault_addresses + exec_callback_number) = 0;
-		qemu_plugin_outs("Remove exec callback\n");
-		//TODO: revert fault
+		qemu_plugin_outs("[TB Exec]: Remove exec callback\n");
 	}
 	else
 	{
@@ -1029,8 +1142,8 @@ void eval_exec_callback(struct qemu_plugin_tb *tb, int exec_callback_number)
 			if((current->fault.address >= qemu_plugin_insn_vaddr(insn))&&(current->fault.address <= qemu_plugin_insn_vaddr(insn) + qemu_plugin_insn_size(insn)))
 			{
 				/* Trigger address met*/
-				qemu_plugin_outs("Register exec callback\n");
-				//qemu_plugin_register_vcpu_insn_exec_cb(insn, trigger_insn_cb, QEMU_PLUGIN_CB_RW_REGS, current);
+				qemu_plugin_outs("[TB Exec]: Register exec callback\n");
+				qemu_plugin_register_vcpu_insn_exec_cb(insn, tb_exec_cb, QEMU_PLUGIN_CB_RW_REGS, current);
 			}	
 		}
 	}
@@ -1217,7 +1330,7 @@ void handle_tb_translate_event(struct qemu_plugin_tb *tb)
 	fault_list_t * current = first_fault;
 	size_t tb_size = calculate_bytesize_instructions(tb);
 	qemu_plugin_outs("Reached tb handle function\n");
-	qemu_plugin_register_vcpu_tb_exec_cb(tb, tb_exec_cb, QEMU_PLUGIN_CB_RW_REGS, NULL);
+	//qemu_plugin_register_vcpu_tb_exec_cb(tb, tb_exec_cb, QEMU_PLUGIN_CB_RW_REGS, NULL);
 	/**Verify, that no trigger is called*/
 	for( int i = 0; i < fault_number; i++)
 	{
@@ -1308,7 +1421,7 @@ void handle_tb_translate_data(struct qemu_plugin_tb *tb)
 	
 	//DEBUG
 	GString *assembler = decode_assembler(tb);
-	g_string_append_printf(out, "[TB Info] tb id: %8lx\n[TB Info] tb size: %i\n[TB Info] Assembler:\n%s", tb->vaddr, tb->n, assembler->str);
+	g_string_append_printf(out, "[TB Info] tb id: %8lx\n[TB Info] tb size: %li\n[TB Info] Assembler:\n%s", tb->vaddr, tb->n, assembler->str);
 	g_string_free(assembler, TRUE);
 
 
@@ -1399,6 +1512,31 @@ int readout_controll_config(GString *conf)
 		fault_number = strtoimax(strstr(conf->str,"num_faults: ") + 11, NULL, 0 );
 		return 1;
 	}
+	if(strstr(conf->str, "start_address: "))
+	{
+		//convert number in string to number
+		start_point.address = strtoimax(strstr(conf->str, "start_address: ") + 14, NULL, 0);
+		return 1;
+	}
+	if(strstr(conf->str, "start_counter: "))
+	{
+		//convert number in string to number
+		start_point.hitcounter = strtoimax(strstr(conf->str, "start_counter: ") + 14, NULL, 0);
+		return 1;
+	}
+	if(strstr(conf->str, "end_address: "))
+	{
+		//convert number in string to number
+		end_point.address = strtoimax(strstr(conf->str, "end_address: ") + 12, NULL, 0);
+		return 1;
+	}
+	if(strstr(conf->str, "end_counter: "))
+	{
+		//convert number in string to number
+		end_point.hitcounter = strtoimax(strstr(conf->str, "end_counter: ") + 12, NULL, 0);
+		return 1;
+	}
+
 	return -1;
 	
 }
@@ -1450,6 +1588,70 @@ int readout_controll_qemu()
 	return 1;
 }
 
+int initialise_plugin(GString * out, int argc, char **argv)
+{
+	// Global fifo data structure for control, data and config
+	pipes = NULL;
+	// Start pointer for linked list of faults
+	first_fault = NULL;
+	// Number of faults registered in plugin
+	fault_number = 0;
+	// Pointer for array, that is dynamically scaled for the number of faults registered.
+	// It is used to fastly look if a trigger condition might be reached
+	fault_trigger_addresses = NULL;
+	// Pointer to array, that is dynamically scaled for the number of faults registered.
+	// It is used to fastly look up injected faults and their livetime in the system.
+	// If livetime of fault reaches zero it undoes the fault. If zero it is permanent.
+	fault_addresses = NULL;
+	// AVL tree used in collecting data. This contains the tbs infos of all generated tbs.
+	// The id of a tb is its base address
+	tb_avl_root = NULL;
+	// Linked list of tb structs inside tb. Used to delete them.
+	tb_info_list = NULL;
+	// List of execution order of tbs.
+	tb_exec_order_list = NULL;
+	// 
+	num_exec_order = 0;
+	//
+	mem_info_list = NULL;
+	//
+	exec_callback = 0;
+	// Used to determen if the tb generating is first executed
+	first_tb = 0;
+	// Used to determen if the first fault is injected
+	first_fault_injected = 0;
+	// counter of executed tbs since start
+	tb_counter = 0;
+	// Maximum number of tbs executed after start
+	tb_counter_max = 1000;
+	// Start point initialisation
+	start_point.address = 0;
+	start_point.hitcounter = 0;
+	start_point.trignum = 0;
+	// End point initialisation
+	end_point.address = 0;
+	end_point.hitcounter = 0;
+	end_point.trignum = 0;
+
+
+	/* Initialisation of pipe struct */
+	pipes = malloc(sizeof(fifos_t));
+	if(pipes == NULL)
+	{	g_string_append(out, "[ERROR]: Pipe struct not malloced\n");
+		return -1;
+	}
+	pipes->control = -1;
+	pipes->config = -1;
+	pipes->data = -1;
+	/*Start Argparsing and open up the Fifos*/
+	if(parse_args(argc, argv, out) != 0)
+	{
+		g_string_append_printf(out, "[ERROR]: Initialisation of FIFO failed!\n");
+		qemu_plugin_outs(out->str);
+		return -1;
+	}
+	g_string_append_printf(out, "[Info]: Initialisation of FIFO.......Done!\n");
+}
 
 /**
  *
@@ -1463,21 +1665,6 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 		const qemu_info_t *info,
 		int argc, char **argv)
 {
-	pipes = NULL;
-	first_fault = NULL;
-	fault_number = 0;
-	fault_trigger_addresses = NULL;
-	fault_addresses = NULL;
-	tb_avl_root = NULL;
-	tb_info_list = NULL;
-	tb_exec_order_list = NULL;
-	num_exec_order = 0;
-	mem_info_list = NULL;
-	exec_callback = 0;
-	first_tb = 0;
-	first_fault_injected = 0;
-	tb_counter = 0;
-	tb_counter_max = 1000;
 	g_autoptr(GString) out = g_string_new("");
 	g_string_printf(out, "QEMU INjection Plugin\n Current Target is %s\n", info->target_name);
 	g_string_append_printf(out, "Current Version of QEMU Plugin is %i, Min Version is %i\n", info->version.cur, info->version.min);
@@ -1487,29 +1674,21 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 		qemu_plugin_outs(out->str);
 		return -1;
 	}
-	pipes = malloc(sizeof(fifos_t));
-	if(pipes == NULL)
-	{	g_string_append(out, "[ERROR]: Pipe struct not malloced\n");
-		goto ABBORT;
-	}
-	pipes->control = -1;
-	pipes->config = -1;
-	pipes->data = -1;
-	/*Start Argparsing and open up the Fifos*/
-	if(parse_args(argc, argv, out) != 0)
+
+
+	// Initialise all global datastructures and open Fifos
+	if(initialise_plugin(out, argc, argv) == -1)
 	{
-		g_string_append_printf(out, "[ERROR]: Initialisation of FIFO failed!\n");
-		qemu_plugin_outs(out->str);
-		return -1;
+		goto ABORT;
 	}
-	g_string_append_printf(out, "[Info]: Initialisation of FIFO.......Done!\n");
+
 	g_string_append_printf(out, "[Info]: Readout config FIFO\n");
 	qemu_plugin_outs(out->str);
 	g_string_printf(out, " ");
 //	if( qemu_setup_config() < 0)
 	if( readout_controll_qemu() < 0)
 	{
-		goto ABBORT;
+		goto ABORT;
 	}
 	g_string_append_printf(out, "[Info]: Linked list entry address: %p\n", first_fault);	
 
@@ -1518,7 +1697,7 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 	g_string_printf(out, " ");
 	if(register_fault_trigger_addresses() < 0 )
 	{
-		goto ABBORT;
+		goto ABORT;
 	}
 	g_string_append_printf(out, "[Info]: Number of triggers: %i\n", fault_number);
 	g_string_append(out, "[Info]: Register VCPU tb trans callback\n");
@@ -1528,7 +1707,7 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 	if(tb_avl_root == NULL)
 	{
 		g_string_append(out, "ERROR\n[ERROR] TB avl tree initialisation failed\n");
-		goto ABBORT;
+		goto ABORT;
 	}
 	g_string_append(out, "Done\n");
 	g_string_append(out, "[Info] Initialise mem avl tree ....");
@@ -1536,13 +1715,13 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 	if(mem_avl_root == NULL)
 	{
 		g_string_append(out, "ERROR\n[ERROR] mem avl tree initialisation failed");
-		goto ABBORT;
+		goto ABORT;
 	}
 	g_string_append(out, "Done\n");
 	g_string_append_printf(out, "[Start]: Reached end of Initialisation, starting guest now\n");
 	qemu_plugin_outs(out->str);
 	return 0;
-ABBORT:
+ABORT:
 	if(mem_avl_root != NULL)
 	{
 		avl_destroy(mem_avl_root, NULL);
