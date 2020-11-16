@@ -29,6 +29,7 @@
 #include "hw/core/cpu.h"
 #include "cpu.h"
 #include "exec/exec-all.h"
+//#include "exec/cpu-all.h"
 #ifndef CONFIG_USER_ONLY
 #include "hw/boards.h"
 #endif
@@ -366,6 +367,12 @@ void plugin_async_flush_tb(CPUState *cpu, run_on_cpu_data arg)
 {
 	g_assert(cpu_in_exclusive_context(cpu));
 	tb_flush(cpu);
+}
+
+
+int plugin_rw_memory_cpu(uint64_t address, uint8_t buffer[], size_t buf_size, char write)
+{
+	return cpu_memory_rw_debug( current_cpu, address, buffer, buf_size, write);
 }
 
 

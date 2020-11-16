@@ -193,6 +193,8 @@ void qemu_plugin_disable_mem_helpers(CPUState *cpu);
 
 void plugin_flush_tb(void);
 
+int plugin_rw_memory_cpu(uint64_t address, uint8_t buffer[], size_t buf_size, char write);
+
 #else /* !CONFIG_PLUGIN */
 
 static inline void qemu_plugin_add_opts(void)
