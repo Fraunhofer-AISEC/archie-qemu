@@ -3,23 +3,23 @@
  */
 
 
-#include <inttypes.h>
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <stdio.h>
-#include <glib.h>
 #include <sys/types.h>
 
 #include "qemu/osdep.h"
 #include "qemu-common.h"
-#include <qemu/qemu-plugin.h>
 #include <qemu/plugin.h>
+#include <qemu/qemu-plugin.h>
+
 #include "hw/core/cpu.h"
 
 #include "lib/avl.h"
 
+#include "faultdata.h"
 //DEBUG
 #include <errno.h>
 #include <string.h>
@@ -699,9 +699,9 @@ void process_set1_memory(uint64_t address, uint8_t  mask[], uint8_t restoremask[
 	}
 	//ret += cpu_memory_rw_debug( cpu, address, value, 16, 1);
 	ret += plugin_rw_memory_cpu( address, value, 16, 1);
-	if (ret < 32)
+	if (ret < 0)
 	{
-		qemu_plugin_outs("Somthing went wrong in read/write to cpu in process_set1_memory\n");
+		qemu_plugin_outs("[ERROR]: Somthing went wrong in read/write to cpu in process_set1_memory\n");
 	}
 }
 
@@ -724,9 +724,9 @@ void process_reverse_fault(uint64_t address, uint8_t mask[], uint8_t restoremask
 		value[i] = value[i] | restoremask[i]; // insert restoremask to restore positions
 	}
 	ret += plugin_rw_memory_cpu( address, value, 16, 1);
-	if (ret < 32)
+	if (ret < 0)
 	{
-		qemu_plugin_outs("Somthing went wrong in read/write to cpu in process_reverse_fault\n");
+		qemu_plugin_outs("[ERROR]: Somthing went wrong in read/write to cpu in process_reverse_fault\n");
 	}
 }
 
@@ -752,9 +752,9 @@ void process_set0_memory(uint64_t address, uint8_t  mask[], uint8_t restoremask[
 	}
 	//ret += cpu_memory_rw_debug( cpu, address, value, 16, 1);
 	ret += plugin_rw_memory_cpu( address, value, 16, 1);
-	if (ret < 32)
+	if (ret < 0)
 	{
-		qemu_plugin_outs("Somthing went wrong in read/write to cpu in process_set0_memory\n");
+		qemu_plugin_outs("[ERROR]: Somthing went wrong in read/write to cpu in process_set0_memory\n");
 	}
 }
 
@@ -781,9 +781,9 @@ void process_toggle_memory(uint64_t address, uint8_t  mask[], uint8_t restoremas
 	}
 	//ret += cpu_memory_rw_debug( cpu, address - 1, value, 16, 1);
 	ret += plugin_rw_memory_cpu( address - 1, value, 16, 1);
-	if (ret < 32)
+	if (ret < 0)
 	{
-		qemu_plugin_outs("Somthing went wrong in read/write to cpu in process_toggle_memory\n");
+		qemu_plugin_outs("[ERROR]: Somthing went wrong in read/write to cpu in process_toggle_memory\n");
 	}
 }
 
@@ -796,8 +796,10 @@ void process_toggle_memory(uint64_t address, uint8_t  mask[], uint8_t restoremas
 int register_exec_callback(uint64_t address)
 {
 	if(exec_callback == fault_number )
-	{
-		qemu_plugin_outs("ERROR: Reached max exec callbacks. Something went totaly wrong!\n");
+	{	
+		g_autoptr(GString) out = g_string_new("");
+		g_string_printf(out, "[ERROR]: Reached max exec callbacks. Something went totaly wrong!\n[ERROR]: exec_callback %i\n[ERROR]: fault_number %i", exec_callback, fault_number);
+		qemu_plugin_outs(out->str);
 		return -1;
 	}
 	*(fault_addresses + exec_callback) = address;
@@ -907,7 +909,6 @@ void inject_fault(fault_list_t * current)
 		{
 			qemu_plugin_outs("[Fault] Inject flash fault\n");
 			inject_memory_fault( current);
-			register_exec_callback(current->fault.address);
 			plugin_flush_tb();
 			qemu_plugin_outs("Fulshed tb\n");
 		}
@@ -1260,19 +1261,32 @@ void plugin_dump_mem_information()
 void plugin_end_information_dump()
 {
 	int *error = NULL;
+	if(memory_module_configured())
+	{
+		qemu_plugin_outs("[DEBUG]: Read memory regions confiugred");
+		read_all_memory();
+	}
 	qemu_plugin_outs("[DEBUG]: Start printing to data pipe tb information\n");
 	plugin_dump_tb_information();
 	qemu_plugin_outs("[DEBUG]: Start printing to data pipe tb exec\n");
 	plugin_dump_tb_exec_order();
 	qemu_plugin_outs("[DEBUG]: Start printing to data pipe tb mem\n");
 	plugin_dump_mem_information();
+	if(memory_module_configured())
+	{
+		qemu_plugin_outs("[DEBUG]: Start printing to data pipe memorydump\n");
+		readout_all_memorydump();
+	}
+
 	qemu_plugin_outs("[DEBUG]: Information now in pipe, start deleting information in memory\n");
 	qemu_plugin_outs("[DEBUG]: Delete tb_info\n");
 	tb_info_free();
 	qemu_plugin_outs("[DEBUG]: Delete tb_exec\n");
 	tb_exec_order_free();
-	qemu_plugin_outs("[DEBUG]: Delte mem\n");
+	qemu_plugin_outs("[DEBUG]: Delete mem\n");
 	mem_info_free();
+	qemu_plugin_outs("[DEBUG]: Delete memorydump\n");
+	delete_memory_dump();
 	qemu_plugin_outs("[DEBUG]: This is the End\n");
 	plugin_write_to_data_pipe("$$$[END]", 8);
 	//Insert deliberate error to cancle exec
@@ -1495,6 +1509,25 @@ int readout_controll_mode(GString *conf)
 	{
 		return 2;
 	}
+	if(strstr(conf->str, "[Memory]"))
+	{
+		return 3;
+	}
+	return -1;
+}
+
+int readout_controll_memory(GString *conf)
+{
+	if(strstr(conf->str, "memoryregion: "))
+	{
+		if(strstr(conf->str, "||"))
+		{
+			uint64_t baseaddress = strtoimax(strstr(conf->str, "memoryregion: ")+ 13, NULL, 0);
+			uint64_t len = strtoimax(strstr(conf->str, "||")+ 2, NULL, 0);
+			insert_memorydump_config(baseaddress, len);
+			return 1;
+		}
+	}
 	return -1;
 }
 
@@ -1536,7 +1569,12 @@ int readout_controll_config(GString *conf)
 		end_point.hitcounter = strtoimax(strstr(conf->str, "end_counter: ") + 12, NULL, 0);
 		return 1;
 	}
-
+	if(strstr(conf->str, "num_memregions: "))
+	{
+		int tmp = strtoimax(strstr(conf->str, "num_memregions: ") + 16, NULL, 0);
+		init_memory(tmp);
+		return 1;
+	}
 	return -1;
 	
 }
@@ -1567,6 +1605,14 @@ int readout_controll_qemu()
 				if(mode == 1)
 				{
 					if(readout_controll_config(conf) == -1)
+					{
+						qemu_plugin_outs("[ERROR]: Unknown Parameter\n");
+						return -1;
+					}
+				}
+				if(mode == 3)
+				{
+					if(readout_controll_memory(conf) == -1)
 					{
 						qemu_plugin_outs("[ERROR]: Unknown Parameter\n");
 						return -1;
@@ -1651,6 +1697,7 @@ int initialise_plugin(GString * out, int argc, char **argv)
 		return -1;
 	}
 	g_string_append_printf(out, "[Info]: Initialisation of FIFO.......Done!\n");
+	init_memory_module();
 }
 
 /**
