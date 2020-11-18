@@ -181,19 +181,11 @@ void qemu_plugin_vcpu_mem_cb(CPUState *cpu, uint64_t vaddr, uint32_t meminfo);
 
 void qemu_plugin_flush_cb(void);
 
-uint32_t read_arm_reg(int reg);
-
-void write_arm_reg(int reg, uint32_t val);
-
 void qemu_plugin_atexit_cb(void);
 
 void qemu_plugin_add_dyn_cb_arr(GArray *arr);
 
 void qemu_plugin_disable_mem_helpers(CPUState *cpu);
-
-void plugin_flush_tb(void);
-
-int plugin_rw_memory_cpu(uint64_t address, uint8_t buffer[], size_t buf_size, char write);
 
 #else /* !CONFIG_PLUGIN */
 

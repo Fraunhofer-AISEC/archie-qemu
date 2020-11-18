@@ -410,4 +410,34 @@ int qemu_plugin_n_max_vcpus(void);
  */
 void qemu_plugin_outs(const char *string);
 
+
+/**
+ * read_arm_reg() read an arm register
+ * @reg: Number of the register
+ *
+ * Returns the value of the register
+ */
+uint32_t read_arm_reg(int reg);
+
+/**
+ * write_arm_reg() - write to an arm register
+ * @reg: number of the register
+ * @val: value written to register
+ */
+void write_arm_reg(int reg, uint32_t val);
+
+/**
+ * plugin_flush_tb() - Flush the tb cach
+ */
+void plugin_flush_tb(void);
+
+/**
+ * plugin_rw_memory_cpu() - Function to read from and write to a guest address.
+ * @address: baseaddress of the memory section
+ * @buffer: buffer managed by caller the value should be written to
+ * @buf_size: size of the buffer and memory size read/written.
+ * @write: 1 if write, 0 if read
+ */
+int plugin_rw_memory_cpu(uint64_t address, uint8_t buffer[], size_t buf_size, char write);
+
 #endif /* QEMU_PLUGIN_API_H */
