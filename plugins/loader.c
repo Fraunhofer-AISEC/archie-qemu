@@ -373,6 +373,8 @@ void plugin_async_flush_tb(CPUState *cpu, run_on_cpu_data arg)
 int plugin_rw_memory_cpu(uint64_t address, uint8_t buffer[], size_t buf_size, char write)
 {
 	return cpu_memory_rw_debug( current_cpu, address, buffer, buf_size, write);
+	//maybe cpu_physical_memory_rw(hwaddr addr, void *buf, hwaddr len, bool is_write)
+
 }
 
 
