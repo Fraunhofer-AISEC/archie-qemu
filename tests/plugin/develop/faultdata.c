@@ -10,10 +10,26 @@ typedef struct
 	uint8_t **buf;
 }memorydump_t;
 
-memorydump_t **memdump
+memorydump_t **memdump;
 uint64_t num_memdump;
 uint64_t used_memdump;
 
+
+void init_memory_module(void)
+{
+	memdump = NULL;
+	num_memdump = 0;
+	used_memdump;
+}
+
+int memory_module_configured(void)
+{
+	if(memdump == NULL)
+	{
+		return 0;
+	}
+	return 1;
+}
 //initialise vectore with empty elements
 int init_memory(int number_of_regions)
 {
@@ -48,23 +64,41 @@ int init_memory(int number_of_regions)
 	}
 	return 0;
   Abort:
-	for(int i = 0; i < number_of_regions; i++)
-	{
-		if(*(memdump + i) == NULL)
-		{
-			free(*(memdump + i));
-		}
-	}
-	free(memdump);
+	delete_memory_dump();
 	return -1;
 }
 
+void delete_memory_dump(void)
+{
+	if(memdump != NULL)
+	{
+		for(int i = 0; i < num_memdump; i++)
+		{
+			if(*(memdump + i) != NULL)
+			{
+				memorydump_t *tmp = *(memdump + i);
+				if(tmp->buf != NULL)
+				{
+					for(int j = 0; j < tmp->num_dumps; j++)
+					{
+						free(*((tmp->buf) + j));
+					}
+					free(tmp->buf);
+				}
+				free(*(memdump + i));
+			}
+		}
+		free(memdump);
+	}
+	memdump = NULL;
+}
 //fill in one vector elemente
 int insert_memorydump_config(uint64_t baseaddress, uint64_t len)
-{
+{	
+	g_autoptr(GString) out = g_string_new("");
 	if(num_memdump == used_memdump)
 	{
-		qemu_pugin_outs("[ERROR]: No Memorydump config free!\n");
+		qemu_plugin_outs("[ERROR]: No Memorydump config free!\n");
 		return -1;
 	}
 	memorydump_t *tmp = *(memdump + used_memdump);
@@ -81,6 +115,8 @@ int insert_memorydump_config(uint64_t baseaddress, uint64_t len)
 			*(*(tmp->buf + j) + i) = 0;
 		}
 	}
+	g_string_printf(out,"[DEBUG]: Config was address %08x len %i\n", baseaddress, len);
+	qemu_plugin_outs(out->str);
 	return 1;
 }
 
@@ -94,30 +130,33 @@ int read_all_memory(void)
 
 int read_memoryregion(uint64_t memorydump_position)
 {
+	g_autoptr(GString) out = g_string_new("");
 	uint64_t ret;
 	memorydump_t *current = *(memdump + memorydump_position);
 	if(current->num_dumps == current->used_dumps)
 	{
-		qemu_plugion_outs("[ERROR]: No free memory dump region available!\n");
+		qemu_plugin_outs("[ERROR]: No free memory dump region available!\n");
 		return -1;
 	}
-	ret = plugin_rw_memory_cpu( tmp->address, *(tmp->buf + tmp->used_dumps), tmp->len, 0);
-	tmp->used_dumps++;
+	qemu_plugin_outs("[DEBUG]: start reading memory memdump");
+	ret = plugin_rw_memory_cpu( current->address, *(current->buf + current->used_dumps), current->len, 0);
+	current->used_dumps++;
+	qemu_plugin_outs("..... done\n");
 	return ret;
 }
 
-int readout_memorydump_dump(uint64_t memorydump_position, uint64_t dump)
+int readout_memorydump_dump(uint64_t memorydump_position, uint64_t dump_pos)
 {
 	g_autoptr(GString) out = g_string_new("");
 	memorydump_t *current = *(memdump + memorydump_position);
-	uint8_t *dump = *(current->dump + dump);
+	uint8_t *dump = *(current->buf + dump_pos);
 	int i = 0;
 	while( i < current->len)
 	{
 		if(i + 8 < current->len)
 		{
 			g_string_printf(out, "$$ 0x%08lx: 0x%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx\n", current->address + i, *(dump + i + 7), *(dump + i + 6), *(dump + i + 5), *(dump + i + 4), *(dump + i + 3), *(dump + i + 2), *(dump + i + 1), *(dump + i + 0));		
-			i+8;
+			i = i+8;
 		}
 		else
 		{
@@ -129,12 +168,14 @@ int readout_memorydump_dump(uint64_t memorydump_position, uint64_t dump)
 			{
 				g_string_printf(out, "%02hhx", *(dump + i + 7 - i % 8));
 			}
-			if(i % 8 == 7)
+			if((i % 8 == 7) || (i == current->len - 1))
 			{
 				g_string_append(out, "\n");
 			}
+			i++;
 		}
-		plugin_write_to_data_pipe(out->str, out->len)
+		//qemu_plugin_outs(out->str);
+		plugin_write_to_data_pipe(out->str, out->len);
 
 	}
 }
@@ -143,17 +184,18 @@ int readout_memorydump(uint64_t memorydump_position)
 {
 	g_autoptr(GString) out = g_string_new("");
 	memorydump_t *current = *(memdump + memorydump_position);
-	g_string_append_printf(out, "$$[memorydump]: %li | %li | %li\n",current->address, current->len, current->used_dumps);
+	g_string_printf(out, "$$[memorydump]: %li | %li | %li\n",current->address, current->len, current->used_dumps);
 	for(int i = 0; i < current->used_dumps; i++)
 	{
-		g_string_append(out, "$$[Dump start]\n")
+		g_string_append(out, "$$[Dump start]\n");
 		plugin_write_to_data_pipe(out->str, out->len);
-		g_string_printf(out, "");
 		readout_memorydump_dump(memorydump_position, i);
-		g_string_append(out "$$[Dump end]\n")
+		g_string_printf(out, "$$[Dump end]\n");
 	}
 	g_string_append(out, "$$[memorydump end]\n");
-	plugin_write_to_data_pipe(out->str,  out->len)
+	plugin_write_to_data_pipe(out->str,  out->len);
+}
+
 
 int readout_all_memorydump(void)
 {
