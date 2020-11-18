@@ -6,6 +6,7 @@
 # cflags that the main configure has already done for us.
 #
 
+#BUILD_DIR := $(CURDIR)/../../../build/release
 BUILD_DIR := $(CURDIR)/../../../build/debug
 
 include $(BUILD_DIR)/config-host.mak
@@ -37,10 +38,13 @@ all: $(SONAMES)
 lib/avl.o: lib/avl.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+faultdata.o: faultdata.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-lib%.so: %.o lib/avl.o
+lib%.so: %.o lib/avl.o faultdata.o
 	$(CC) -shared -Wl,-soname,$@ -o $@ $^ $(LDLIBS)
 
 clean:
