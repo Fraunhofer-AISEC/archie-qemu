@@ -1332,6 +1332,27 @@ void tb_exec_data_event(unsigned int vcpu_index, void *vcurrent)
 //	qemu_plugin_outs(out->str);
 }
 
+void tb_exec_end_cb(unsigned int vcpu_index, void *vcurrent)
+{
+	if(first_fault_injected == 1)
+	{
+		if(end_point.hitcounter == 0)
+		{
+			plugin_end_information_dump();
+		}
+		end_point.hitcounter--;
+	}
+}
+
+void tb_exec_start_cb(unsigned int vcpu_index, void *vcurrent)
+{
+	if(start_point.hitcounter == 0)
+	{
+		start_point.trignum = 0;
+		plugin_flush_tb();
+	}
+	start_point.hitcounter--;
+}
 
 /**
  * handle_tb_translate_event
@@ -1458,24 +1479,43 @@ static void vcpu_translateblock_translation_event(qemu_plugin_id_t id, struct qe
 
 	qemu_plugin_outs(out->str);
 	g_string_printf(out, " ");
-	if(first_tb != 0)
+	if(start_point.trignum != 3)
 	{
-		g_string_append_printf(out, "[TB] Reached normal tb\n\n");
+		if(first_tb != 0)
+		{
+			g_string_append_printf(out, "[TB] Reached normal tb\n\n");
+			qemu_plugin_outs(out->str);
+			g_string_printf(out, " ");
+			handle_tb_translate_event( tb);
+		}
+		else
+		{
+			g_string_append_printf(out, "This is the first time the tb is translated\n");
+			first_tb = 1;
+			qemu_plugin_outs(out->str);
+			g_string_printf(out, " ");
+			handle_first_tb_fault_insertion();
+		}
 		qemu_plugin_outs(out->str);
-		g_string_printf(out, " ");
-		handle_tb_translate_event( tb);
-
+		handle_tb_translate_data(tb);
+		if(end_point.trignum == 3)
+		{
+			size_t tb_size = calculate_bytesize_instructions(tb);
+			if((tb->vaddr <= end_point.address)&&((tb->vaddr + tb_size) >= end_point.address))
+			{
+				qemu_plugin_register_vcpu_tb_exec_cb(tb, tb_exec_end_cb, QEMU_PLUGIN_CB_RW_REGS, NULL);
+			}
+		}
 	}
 	else
 	{
-		g_string_append_printf(out, "This is the first time the tb is translated\n");
-		first_tb = 1;
-		qemu_plugin_outs(out->str);
-		g_string_printf(out, " ");
-		handle_first_tb_fault_insertion();
+		size_t tb_size = calculate_bytesize_instructions(tb);
+		if((tb->vaddr <= start_point.address)&&((tb->vaddr + tb_size) >= start_point.address))
+		{
+			qemu_plugin_register_vcpu_tb_exec_cb(tb, tb_exec_start_cb, QEMU_PLUGIN_CB_RW_REGS, NULL);
+		}
+
 	}
-	qemu_plugin_outs(out->str);
-	handle_tb_translate_data(tb);
 }
 
 void readout_controll_pipe(GString *out)
@@ -1549,24 +1589,28 @@ int readout_controll_config(GString *conf)
 	{
 		//convert number in string to number
 		start_point.address = strtoimax(strstr(conf->str, "start_address: ") + 14, NULL, 0);
+		start_point.trignum = start_point.trignum | 2;
 		return 1;
 	}
 	if(strstr(conf->str, "start_counter: "))
 	{
 		//convert number in string to number
 		start_point.hitcounter = strtoimax(strstr(conf->str, "start_counter: ") + 14, NULL, 0);
+		start_point.trignum = start_point.trignum | 1;
 		return 1;
 	}
 	if(strstr(conf->str, "end_address: "))
 	{
 		//convert number in string to number
 		end_point.address = strtoimax(strstr(conf->str, "end_address: ") + 12, NULL, 0);
+		end_point.trignum = end_point.trignum | 2;
 		return 1;
 	}
 	if(strstr(conf->str, "end_counter: "))
 	{
 		//convert number in string to number
 		end_point.hitcounter = strtoimax(strstr(conf->str, "end_counter: ") + 12, NULL, 0);
+		end_point.trignum = end_point.trignum | 1;
 		return 1;
 	}
 	if(strstr(conf->str, "num_memregions: "))
