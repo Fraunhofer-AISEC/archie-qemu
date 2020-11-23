@@ -773,15 +773,15 @@ void process_toggle_memory(uint64_t address, uint8_t  mask[], uint8_t restoremas
 {
 	uint8_t value[16];
 	int ret;
-	//ret = cpu_memory_rw_debug( cpu, address - 1, value, 16, 0);
-	ret = plugin_rw_memory_cpu( address - 1, value, 16, 0);
+	//ret = cpu_memory_rw_debug( cpu, address, value, 16, 0);
+	ret = plugin_rw_memory_cpu( address , value, 16, 0);
 	for(int i = 0; i < 16; i++)
 	{
 		restoremask[i] = value[i] & mask[15 - i]; //generate restore mask
 		value[i] = value[i] ^ mask[15 - i]; //inject fault
 	}
 	//ret += cpu_memory_rw_debug( cpu, address - 1, value, 16, 1);
-	ret += plugin_rw_memory_cpu( address - 1, value, 16, 1);
+	ret += plugin_rw_memory_cpu( address, value, 16, 1);
 	if (ret < 0)
 	{
 		qemu_plugin_outs("[ERROR]: Somthing went wrong in read/write to cpu in process_toggle_memory\n");
