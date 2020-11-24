@@ -97,12 +97,12 @@ fault_trigger_t end_point;
 typedef struct tb_info_t tb_info_t;
 typedef struct tb_info_t
 {
-        uint64_t base_address;
-        uint64_t size;
-        uint64_t instruction_count;
-        GString * assembler;
-        uint64_t num_of_exec; // Number of executions(aka a counter)
-        tb_info_t *next;
+	uint64_t base_address;
+	uint64_t size;
+	uint64_t instruction_count;
+	GString * assembler;
+	uint64_t num_of_exec; // Number of executions(aka a counter)
+	tb_info_t *next;
 }tb_info_t;
 
 tb_info_t *tb_info_list; 
@@ -381,7 +381,7 @@ void print_assembler(struct qemu_plugin_tb *tb)
 GString* decode_assembler(struct qemu_plugin_tb *tb)
 {
 	GString* out = g_string_new("");
-	
+
 	for(int i = 0; i < tb->n; i++)
 	{
 		struct qemu_plugin_insn * insn = qemu_plugin_tb_get_insn(tb, i);
@@ -887,7 +887,7 @@ void reverse_register_fault(fault_list_t * current)
 {
 	g_autoptr(GString) out = g_string_new("");
 	uint32_t reg = read_arm_reg(current->fault.address);
-	
+
 	g_string_printf(out, " Change register %li back from %08x", current->fault.address, reg);
 	for(int i = 0; i < 4; i++)
 	{
@@ -1018,7 +1018,7 @@ void handle_first_tb_fault_insertion()
 size_t calculate_bytesize_instructions(struct qemu_plugin_tb *tb)
 {
 	//g_autoptr(GString) out = g_string_new("");
-	
+
 	struct qemu_plugin_insn * insn_first = qemu_plugin_tb_get_insn(tb, 0);
 	struct qemu_plugin_insn * insn_last = qemu_plugin_tb_get_insn(tb, tb->n -1);
 	uint64_t size = (insn_last->vaddr - insn_first->vaddr) + insn_last->data->len;
@@ -1064,7 +1064,7 @@ void trigger_insn_cb(unsigned int vcpu_index, void *vcurrent)
 void tb_exec_cb(unsigned int vcpu_index, void *userdata)
 {
 	fault_list_t *current = (fault_list_t *) userdata;
-	
+
 	if(current->fault.lifetime != 0)
 	{
 		current->fault.lifetime = current->fault.lifetime - 1;
@@ -1224,10 +1224,10 @@ void plugin_dump_tb_information()
 		g_string_printf(out, "$$0x%lx | 0x%lx | 0x%lx | 0x%lx | %s \n", item->base_address, item->size, item->instruction_count, item->num_of_exec, item->assembler->str );
 		plugin_write_to_data_pipe(out->str, out->len);
 		item = item->next;
-	//	free(tb_info_list);
-	//	tb_info_list = item;
+		//	free(tb_info_list);
+		//	tb_info_list = item;
 	}
-		
+
 	//tb_info_t *tb_info_list;
 }
 
@@ -1361,10 +1361,10 @@ void tb_exec_data_event(unsigned int vcpu_index, void *vcurrent)
 		tb_counter++;
 	}
 	//
-//DEBUG	
-//	g_autoptr(GString) out = g_string_new("");
-//	g_string_printf(out, "[TB_exec]: ID: %x, Execs %i\n", tb_info->base_address, tb_info->num_of_exec);
-//	qemu_plugin_outs(out->str);
+	//DEBUG	
+	//	g_autoptr(GString) out = g_string_new("");
+	//	g_string_printf(out, "[TB_exec]: ID: %x, Execs %i\n", tb_info->base_address, tb_info->num_of_exec);
+	//	qemu_plugin_outs(out->str);
 }
 
 void tb_exec_end_max_event(unsigned int vcpu_index, void *vcurrent)
@@ -1524,7 +1524,7 @@ void handle_tb_translate_data(struct qemu_plugin_tb *tb)
 
 
 	qemu_plugin_outs(out->str);
-	
+
 }
 
 
@@ -1568,15 +1568,15 @@ static void vcpu_translateblock_translation_event(qemu_plugin_id_t id, struct qe
 			if((tb->vaddr <= end_point.address)&&((tb->vaddr + tb_size) >= end_point.address))
 			{       
 				for(int i = 0; i < tb->n; i++)
-        			{
-                			struct qemu_plugin_insn *insn = qemu_plugin_tb_get_insn(tb, i);
-                			if((end_point.address >= qemu_plugin_insn_vaddr(insn))&&(end_point.address < qemu_plugin_insn_vaddr(insn) + qemu_plugin_insn_size(insn)))
-                			{
-                        			/* Trigger address met*/
+				{
+					struct qemu_plugin_insn *insn = qemu_plugin_tb_get_insn(tb, i);
+					if((end_point.address >= qemu_plugin_insn_vaddr(insn))&&(end_point.address < qemu_plugin_insn_vaddr(insn) + qemu_plugin_insn_size(insn)))
+					{
+						/* Trigger address met*/
 						qemu_plugin_outs("[End]: Inject cb\n");
-                        			qemu_plugin_register_vcpu_insn_exec_cb(insn, tb_exec_end_cb, QEMU_PLUGIN_CB_RW_REGS, NULL);
-                			}
-        			}
+						qemu_plugin_register_vcpu_insn_exec_cb(insn, tb_exec_end_cb, QEMU_PLUGIN_CB_RW_REGS, NULL);
+					}
+				}
 				//qemu_plugin_outs("[End]: Inject cb\n");
 				//qemu_plugin_register_vcpu_tb_exec_cb(tb, tb_exec_end_cb, QEMU_PLUGIN_CB_RW_REGS, NULL);
 			}
@@ -1611,7 +1611,7 @@ void readout_controll_pipe(GString *out)
 		}
 	}
 	//qemu_plugin_outs(out->str);
-	
+
 }
 
 int readout_controll_mode(GString *conf)
@@ -1725,7 +1725,7 @@ int readout_controll_config(GString *conf)
 		return 1;
 	}
 	return -1;
-	
+
 }
 
 int readout_controll_qemu()
@@ -1827,7 +1827,7 @@ int initialise_plugin(GString * out, int argc, char **argv)
 	end_point.address = 0;
 	end_point.hitcounter = 0;
 	end_point.trignum = 0;
-	
+
 	//enable mem info logging
 	mem_info_list_enabled = 1;
 	//enable tb info logging
@@ -1887,7 +1887,7 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 	g_string_append_printf(out, "[Info]: Readout config FIFO\n");
 	qemu_plugin_outs(out->str);
 	g_string_printf(out, " ");
-//	if( qemu_setup_config() < 0)
+	//	if( qemu_setup_config() < 0)
 	if( readout_controll_qemu() < 0)
 	{
 		goto ABORT;
