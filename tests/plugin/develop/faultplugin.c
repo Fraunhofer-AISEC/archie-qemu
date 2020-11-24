@@ -803,6 +803,7 @@ int register_exec_callback(uint64_t address)
 		qemu_plugin_outs(out->str);
 		return -1;
 	}
+	qemu_plugin_outs("[Fault]: Register exec callback\n");
 	*(fault_addresses + exec_callback) = address;
 	exec_callback++;
 	return exec_callback - 1;
@@ -1014,14 +1015,14 @@ void handle_first_tb_fault_insertion()
  */
 size_t calculate_bytesize_instructions(struct qemu_plugin_tb *tb)
 {
-	g_autoptr(GString) out = g_string_new("");
+	//g_autoptr(GString) out = g_string_new("");
 	
 	struct qemu_plugin_insn * insn_first = qemu_plugin_tb_get_insn(tb, 0);
 	struct qemu_plugin_insn * insn_last = qemu_plugin_tb_get_insn(tb, tb->n -1);
 	uint64_t size = (insn_last->vaddr - insn_first->vaddr) + insn_last->data->len;
-	g_string_printf(out, "[CALC]: tb instruction size is %li \n", size);
+	//g_string_printf(out, "[CALC]: tb instruction size is %li \n", size);
 
-	qemu_plugin_outs(out->str);
+	//qemu_plugin_outs(out->str);
 	return (size_t) size;
 }
 
@@ -1065,10 +1066,10 @@ void tb_exec_cb(unsigned int vcpu_index, void *userdata)
 	if(current->fault.lifetime != 0)
 	{
 		current->fault.lifetime = current->fault.lifetime - 1;
-		qemu_plugin_outs("Exec eval function reached\n");
+		qemu_plugin_outs("[TB Exec] Exec eval function reached\n");
 		if(current->fault.lifetime == 0)
 		{
-			qemu_plugin_outs("Exec lifetime fault reached, reverse fault");
+			qemu_plugin_outs("[TB Exec] Exec lifetime fault reached, reverse fault");
 			reverse_fault(current);
 			*(fault_addresses + current->fault.trigger.trignum) = 0;
 		}
@@ -1144,15 +1145,22 @@ void eval_exec_callback(struct qemu_plugin_tb *tb, int exec_callback_number)
 	}
 	else
 	{
+		int address;
+		if (current->fault.type != FLASH)
+		{
+			address = current->fault.trigger.address;
+		}
+		else
+		{
+			address = current->fault.address;
+		}
 		/* Register exec callback*/
 		for(int i = 0; i < tb->n; i++)
 		{
 			struct qemu_plugin_insn *insn = qemu_plugin_tb_get_insn(tb, i);
-			if(((current->fault.address >= qemu_plugin_insn_vaddr(insn))&&(current->fault.address <= qemu_plugin_insn_vaddr(insn) + qemu_plugin_insn_size(insn))) || 
-					((current->fault.trigger.address >= qemu_plugin_insn_vaddr(insn))&&(current->fault.trigger.address <= qemu_plugin_insn_vaddr(insn) + qemu_plugin_insn_size(insn))))
+			if((( address >= qemu_plugin_insn_vaddr(insn))&&(address < qemu_plugin_insn_vaddr(insn) + qemu_plugin_insn_size(insn)))) 
 			{
-				/* Trigger address met*/
-				qemu_plugin_outs("[TB Exec]: Register exec callback\n");
+				qemu_plugin_outs("[TB Exec]: Register exec callback function\n");
 				qemu_plugin_register_vcpu_insn_exec_cb(insn, tb_exec_cb, QEMU_PLUGIN_CB_RW_REGS, current);
 			}	
 		}
@@ -1330,6 +1338,7 @@ void tb_exec_data_event(unsigned int vcpu_index, void *vcurrent)
 	{
 		if(tb_counter == tb_counter_max)
 		{
+			qemu_plugin_outs("[Max tb]: max tb counter reached");
 			plugin_end_information_dump();
 		}
 		tb_counter++;
@@ -1345,8 +1354,10 @@ void tb_exec_end_cb(unsigned int vcpu_index, void *vcurrent)
 {
 	if(first_fault_injected == 1)
 	{
+		qemu_plugin_outs("[End]: CB called\n");
 		if(end_point.hitcounter == 0)
 		{
+			qemu_plugin_outs("[End]: Reached end point\n");
 			plugin_end_information_dump();
 		}
 		end_point.hitcounter--;
@@ -1357,6 +1368,7 @@ void tb_exec_start_cb(unsigned int vcpu_index, void *vcurrent)
 {
 	if(start_point.hitcounter == 0)
 	{
+		qemu_plugin_outs("[Start]: Start point reached");
 		start_point.trignum = 0;
 		plugin_flush_tb();
 	}
@@ -1389,11 +1401,11 @@ void handle_tb_translate_event(struct qemu_plugin_tb *tb)
 	/* Verify, if exec callback is requested */
 	for(int i = 0; i < exec_callback; i++)
 	{
-		qemu_plugin_outs("[Lifetime] Check livetime\n");
-		if((tb->vaddr < *(fault_addresses + i)) && ((tb->vaddr + tb_size) > *(fault_addresses + i)))
+		//qemu_plugin_outs("[Lifetime] Check livetime\n");
+		if((tb->vaddr <= *(fault_addresses + i)) && ((tb->vaddr + tb_size) > *(fault_addresses + i)))
 		{
 			g_autoptr(GString) out = g_string_new("");
-			g_string_printf(out, " Reached exec callback event\n");
+			g_string_printf(out, "[TB exec] Reached exec callback event\n");
 			qemu_plugin_outs(out->str);
 			eval_exec_callback(tb, i);
 		}
@@ -1485,7 +1497,7 @@ static void vcpu_translateblock_translation_event(qemu_plugin_id_t id, struct qe
 	g_autoptr(GString) out = g_string_new("");
 	g_string_printf(out, "\n");
 
-	g_string_append_printf(out, "[TB] Virt1 value: %8lx\n", tb->vaddr);
+	//g_string_append_printf(out, "[TB] Virt1 value: %8lx\n", tb->vaddr);
 
 	qemu_plugin_outs(out->str);
 	g_string_printf(out, " ");
@@ -1493,7 +1505,7 @@ static void vcpu_translateblock_translation_event(qemu_plugin_id_t id, struct qe
 	{
 		if(first_tb != 0)
 		{
-			g_string_append_printf(out, "[TB] Reached normal tb\n\n");
+			//g_string_append_printf(out, "[TB] Reached normal tb\n\n");
 			qemu_plugin_outs(out->str);
 			g_string_printf(out, " ");
 			handle_tb_translate_event( tb);
@@ -1511,9 +1523,21 @@ static void vcpu_translateblock_translation_event(qemu_plugin_id_t id, struct qe
 		if(end_point.trignum == 3)
 		{
 			size_t tb_size = calculate_bytesize_instructions(tb);
+			qemu_plugin_outs("[End]: Check endpoint\n");
 			if((tb->vaddr <= end_point.address)&&((tb->vaddr + tb_size) >= end_point.address))
-			{
-				qemu_plugin_register_vcpu_tb_exec_cb(tb, tb_exec_end_cb, QEMU_PLUGIN_CB_RW_REGS, NULL);
+			{       
+				for(int i = 0; i < tb->n; i++)
+        			{
+                			struct qemu_plugin_insn *insn = qemu_plugin_tb_get_insn(tb, i);
+                			if((end_point.address >= qemu_plugin_insn_vaddr(insn))&&(end_point.address < qemu_plugin_insn_vaddr(insn) + qemu_plugin_insn_size(insn)))
+                			{
+                        			/* Trigger address met*/
+						qemu_plugin_outs("[End]: Inject cb\n");
+                        			qemu_plugin_register_vcpu_insn_exec_cb(insn, tb_exec_end_cb, QEMU_PLUGIN_CB_RW_REGS, NULL);
+                			}
+        			}
+				//qemu_plugin_outs("[End]: Inject cb\n");
+				//qemu_plugin_register_vcpu_tb_exec_cb(tb, tb_exec_end_cb, QEMU_PLUGIN_CB_RW_REGS, NULL);
 			}
 		}
 	}
