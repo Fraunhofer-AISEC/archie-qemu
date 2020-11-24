@@ -106,7 +106,7 @@ typedef struct tb_info_t
 }tb_info_t;
 
 tb_info_t *tb_info_list; 
-
+int tb_info_enabled;
 /*AVL global variables*/
 struct avl_table *tb_avl_root;
 
@@ -139,6 +139,7 @@ typedef struct tb_exec_order_t
 
 tb_exec_order_t *tb_exec_order_list;
 uint64_t num_exec_order;
+int tb_exec_order_enabled;
 
 /**
  * tb_exec_order_free()
@@ -202,6 +203,7 @@ typedef struct mem_info_t
 }mem_info_t;
 
 mem_info_t *mem_info_list;
+int mem_info_list_enabled;
 
 struct avl_table *mem_avl_root;
 
@@ -1209,6 +1211,10 @@ int plugin_write_to_data_pipe(char *str, size_t len)
  */
 void plugin_dump_tb_information()
 {
+	if(tb_info_list == NULL)
+	{
+		return;
+	}
 	g_autoptr(GString) out = g_string_new("");
 	g_string_printf(out, "$$$[TB Information]:\n");
 	plugin_write_to_data_pipe(out->str, out->len);
@@ -1232,6 +1238,10 @@ void plugin_dump_tb_information()
  */
 void plugin_dump_tb_exec_order()
 {
+	if(tb_exec_order_list == NULL)
+	{
+		return;
+	}
 	g_autoptr(GString) out = g_string_new("");
 	g_string_printf(out, "$$$[TB Exec]:\n");
 	plugin_write_to_data_pipe(out->str, out->len);
@@ -1254,6 +1264,10 @@ void plugin_dump_tb_exec_order()
  */
 void plugin_dump_mem_information()
 {
+	if(mem_info_list == NULL)
+	{
+		return;
+	}
 	g_autoptr(GString) out = g_string_new("");
 	g_string_printf(out, "$$$[Mem Information]:\n");
 	plugin_write_to_data_pipe(out->str, out->len);
@@ -1326,7 +1340,10 @@ void plugin_end_information_dump()
 void tb_exec_data_event(unsigned int vcpu_index, void *vcurrent)
 {
 	tb_info_t *tb_info = vcurrent;
-	tb_info->num_of_exec++;
+	if(tb_info != NULL)
+	{
+		tb_info->num_of_exec++;
+	}
 	tb_exec_order_t *last = malloc(sizeof(tb_exec_order_t));
 	last->tb_info = tb_info;
 	last->prev = tb_exec_order_list;
@@ -1334,7 +1351,7 @@ void tb_exec_data_event(unsigned int vcpu_index, void *vcurrent)
 	num_exec_order++;
 	//TODO
 	//Build Abbortion logic here. Because this will be executed every tb
-	if(first_fault_injected == 1)
+	if(start_point.hitcounter != 3)
 	{
 		if(tb_counter == tb_counter_max)
 		{
@@ -1350,9 +1367,22 @@ void tb_exec_data_event(unsigned int vcpu_index, void *vcurrent)
 //	qemu_plugin_outs(out->str);
 }
 
+void tb_exec_end_max_event(unsigned int vcpu_index, void *vcurrent)
+{
+	if(start_point.hitcounter != 3)
+	{	
+		if(tb_counter == tb_counter_max)
+		{
+			qemu_plugin_outs("[Max tb]: max tb counter reached");
+			plugin_end_information_dump();
+		}
+		tb_counter++;
+	}
+}
+
 void tb_exec_end_cb(unsigned int vcpu_index, void *vcurrent)
 {
-	if(first_fault_injected == 1)
+	if(start_point.hitcounter != 3)
 	{
 		qemu_plugin_outs("[End]: CB called\n");
 		if(end_point.hitcounter == 0)
@@ -1425,57 +1455,68 @@ void handle_tb_translate_data(struct qemu_plugin_tb *tb)
 {
 	g_autoptr(GString) out = g_string_new("");
 	g_string_printf(out, "\n");
-	//TODO
-	//virt1 ist id der tb
-	tb_info_t tmp;
-	tmp.base_address = tb->vaddr;
-	g_string_append_printf(out, "[TB Info]: Search TB......");
-	//qemu_plugin_outs(out->str);
-	tb_info_t *tb_information = (tb_info_t *) avl_find(tb_avl_root, &tmp); 	
-	if(tb_information == NULL)
+	tb_info_t *tb_information = NULL;
+	if(tb_info_enabled == 1)
 	{
-		tb_information = malloc(sizeof(tb_info_t));
+		//TODO
+		//virt1 ist id der tb
+		tb_info_t tmp;
+		tmp.base_address = tb->vaddr;
+		g_string_append_printf(out, "[TB Info]: Search TB......");
+		//qemu_plugin_outs(out->str);
+		tb_information = (tb_info_t *) avl_find(tb_avl_root, &tmp); 	
 		if(tb_information == NULL)
 		{
-			return;
-		}
-		tb_information->base_address = tb->vaddr;
-		tb_information->instruction_count = tb->n;
-		tb_information->assembler = decode_assembler(tb);
-		tb_information->num_of_exec = 0;
-		tb_information->size = calculate_bytesize_instructions(tb);
-		tb_information->next = tb_info_list;
-		tb_info_list = tb_information;
-		g_string_append(out, "Not Found\n");
-		if( avl_insert(tb_avl_root, tb_information) != NULL)
-		{
-			qemu_plugin_outs("[ERROR]: Somthing went wrong in avl instert");
-			return;
+			tb_information = malloc(sizeof(tb_info_t));
+			if(tb_information == NULL)
+			{
+				return;
+			}
+			tb_information->base_address = tb->vaddr;
+			tb_information->instruction_count = tb->n;
+			tb_information->assembler = decode_assembler(tb);
+			tb_information->num_of_exec = 0;
+			tb_information->size = calculate_bytesize_instructions(tb);
+			tb_information->next = tb_info_list;
+			tb_info_list = tb_information;
+			g_string_append(out, "Not Found\n");
+			if( avl_insert(tb_avl_root, tb_information) != NULL)
+			{
+				qemu_plugin_outs("[ERROR]: Somthing went wrong in avl instert");
+				return;
+			}
+			else
+			{
+				if(avl_find(tb_avl_root, &tmp) != tb_information)
+				{
+					qemu_plugin_outs("[ERROR]: Conntent changed!");
+					return;
+				}
+			}
+			g_string_append(out, "[TB Info]: Done insertion into avl\n");
+			//qemu_plugin_outs(out->str);
 		}
 		else
 		{
-			if(avl_find(tb_avl_root, &tmp) != tb_information)
-			{
-				qemu_plugin_outs("[ERROR]: Conntent changed!");
-				return;
-			}
+			g_string_append(out, "Found\n");
 		}
-		g_string_append(out, "[TB Info]: Done insertion into avl\n");
-		//qemu_plugin_outs(out->str);
+	}
+	if(tb_exec_order_enabled == 1)
+	{
+		qemu_plugin_register_vcpu_tb_exec_cb(tb, tb_exec_data_event, QEMU_PLUGIN_CB_RW_REGS, tb_information);
 	}
 	else
 	{
-		g_string_append(out, "Found\n");
+		qemu_plugin_register_vcpu_tb_exec_cb(tb, tb_exec_end_max_event, QEMU_PLUGIN_CB_RW_REGS, tb_information);
 	}
-
-	qemu_plugin_register_vcpu_tb_exec_cb(tb, tb_exec_data_event, QEMU_PLUGIN_CB_RW_REGS, tb_information);
-	for(int i = 0; i < tb->n; i++)
+	if( mem_info_list_enabled == 1)
 	{
-		struct qemu_plugin_insn *insn = qemu_plugin_tb_get_insn(tb, i);
-
-		qemu_plugin_register_vcpu_mem_cb( insn, memaccess_data_cb, QEMU_PLUGIN_CB_RW_REGS, QEMU_PLUGIN_MEM_RW, insn->vaddr);
+		for(int i = 0; i < tb->n; i++)
+		{
+			struct qemu_plugin_insn *insn = qemu_plugin_tb_get_insn(tb, i);
+			qemu_plugin_register_vcpu_mem_cb( insn, memaccess_data_cb, QEMU_PLUGIN_CB_RW_REGS, QEMU_PLUGIN_MEM_RW, insn->vaddr);
+		}
 	}
-	
 	//DEBUG
 	GString *assembler = decode_assembler(tb);
 	g_string_append_printf(out, "[TB Info] tb id: %8lx\n[TB Info] tb size: %li\n[TB Info] Assembler:\n%s", tb->vaddr, tb->n, assembler->str);
@@ -1544,7 +1585,7 @@ static void vcpu_translateblock_translation_event(qemu_plugin_id_t id, struct qe
 	else
 	{
 		size_t tb_size = calculate_bytesize_instructions(tb);
-		if((tb->vaddr <= start_point.address)&&((tb->vaddr + tb_size) >= start_point.address))
+		if((tb->vaddr <= start_point.address)&&((tb->vaddr + tb_size) > start_point.address))
 		{
 			qemu_plugin_register_vcpu_tb_exec_cb(tb, tb_exec_start_cb, QEMU_PLUGIN_CB_RW_REGS, NULL);
 		}
@@ -1653,6 +1694,36 @@ int readout_controll_config(GString *conf)
 		init_memory(tmp);
 		return 1;
 	}
+	if(strstr(conf->str, "enable_mem_info"))
+	{
+		mem_info_list_enabled = 1;
+		return 1;
+	}
+	if(strstr(conf->str, "disable_mem_info"))
+	{
+		mem_info_list_enabled = 0;
+		return 1;
+	}
+	if(strstr(conf->str, "enable_tb_info"))
+	{
+		tb_info_enabled = 1;
+		return 1;
+	}
+	if(strstr(conf->str, "disable_tb_info"))
+	{
+		tb_info_enabled = 0;
+		return 1;
+	}
+	if(strstr(conf->str, "enable_tb_exec_list"))
+	{
+		tb_exec_order_enabled = 1;
+		return 1;
+	}
+	if(strstr(conf->str, "disable_tb_exec_list"))
+	{
+		tb_exec_order_enabled = 0;
+		return 1;
+	}
 	return -1;
 	
 }
@@ -1756,7 +1827,13 @@ int initialise_plugin(GString * out, int argc, char **argv)
 	end_point.address = 0;
 	end_point.hitcounter = 0;
 	end_point.trignum = 0;
-
+	
+	//enable mem info logging
+	mem_info_list_enabled = 1;
+	//enable tb info logging
+	tb_info_enabled = 1;
+	//enable tb exec logging
+	tb_exec_order_enabled = 1;
 
 	/* Initialisation of pipe struct */
 	pipes = malloc(sizeof(fifos_t));
