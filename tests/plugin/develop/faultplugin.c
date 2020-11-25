@@ -1292,6 +1292,14 @@ void plugin_dump_mem_information()
 void plugin_end_information_dump()
 {
 	int *error = NULL;
+	if(end_point.trignum == 4)
+	{
+		plugin_write_to_data_pipe("$$$[Endpoint]: 1\n", 17);
+	}
+	else
+	{
+		plugin_write_to_data_pipe("$$$[Endpoint]: 0\n", 17);
+	}
 	if(memory_module_configured())
 	{
 		qemu_plugin_outs("[DEBUG]: Read memory regions confiugred");
@@ -1388,6 +1396,7 @@ void tb_exec_end_cb(unsigned int vcpu_index, void *vcurrent)
 		if(end_point.hitcounter == 0)
 		{
 			qemu_plugin_outs("[End]: Reached end point\n");
+			end_point.trignum = 4;
 			plugin_end_information_dump();
 		}
 		end_point.hitcounter--;
