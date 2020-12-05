@@ -1331,6 +1331,7 @@ void plugin_end_information_dump()
 	//Insert deliberate error to cancle exec
 	//TODO Build good exit to qemu
 	//while(1);
+	exit(0);
 	*error = 0;
 	//mem_info_free();
 	//Now we will start to dump information
