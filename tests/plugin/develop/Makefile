@@ -41,10 +41,13 @@ lib/avl.o: lib/avl.c
 faultdata.o: faultdata.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+registerdump.o: registerdump.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-lib%.so: %.o lib/avl.o faultdata.o
+lib%.so: %.o lib/avl.o faultdata.o registerdump.o
 	$(CC) -shared -Wl,-soname,$@ -o $@ $^ $(LDLIBS)
 
 clean:
