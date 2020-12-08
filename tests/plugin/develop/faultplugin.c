@@ -243,6 +243,14 @@ int mem_comparison_func(const void *tbl_a, const void *tbl_b, void *tbl_param)
 {
 	const mem_info_t *mem_a = tbl_a;
 	const mem_info_t *mem_b = tbl_b;
+	// Etchcase, memory_address is not the same as the element, but ins is the same
+	if(mem_a->ins_address == mem_b->ins_address)
+	{
+		if (mem_a->memmory_address != mem_b->memmory_address)
+		{
+			return  mem_a->memmory_address -  mem_b->memmory_address;
+		}
+	}
 	return mem_a->ins_address - mem_b->ins_address;
 }
 
@@ -273,6 +281,7 @@ static void memaccess_data_cb(unsigned int vcpu_index, qemu_plugin_meminfo_t inf
 {
 	mem_info_t tmp;
 	tmp.ins_address = (uint64_t)(userdata);
+	tmp.memmory_address = vddr;
 	mem_info_t *mem_access = avl_find(mem_avl_root,&tmp);
 	if(mem_access == NULL)
 	{
