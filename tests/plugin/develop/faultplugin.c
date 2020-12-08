@@ -20,6 +20,7 @@
 #include "lib/avl.h"
 
 #include "faultdata.h"
+#include "registerdump.h"
 //DEBUG
 #include <errno.h>
 #include <string.h>
@@ -1305,6 +1306,8 @@ void plugin_end_information_dump()
 		qemu_plugin_outs("[DEBUG]: Read memory regions confiugred");
 		read_all_memory();
 	}
+	qemu_plugin_outs("[DEBUG]: Read registers");
+	add_new_registerdump(tb_counter);
 	qemu_plugin_outs("[DEBUG]: Start printing to data pipe tb information\n");
 	plugin_dump_tb_information();
 	qemu_plugin_outs("[DEBUG]: Start printing to data pipe tb exec\n");
@@ -1316,7 +1319,7 @@ void plugin_end_information_dump()
 		qemu_plugin_outs("[DEBUG]: Start printing to data pipe memorydump\n");
 		readout_all_memorydump();
 	}
-
+	read_register_module();	
 	qemu_plugin_outs("[DEBUG]: Information now in pipe, start deleting information in memory\n");
 	qemu_plugin_outs("[DEBUG]: Delete tb_info\n");
 	tb_info_free();
@@ -1863,6 +1866,7 @@ int initialise_plugin(GString * out, int argc, char **argv)
 	}
 	g_string_append_printf(out, "[Info]: Initialisation of FIFO.......Done!\n");
 	init_memory_module();
+	init_register_module(ARM);
 }
 
 /**
