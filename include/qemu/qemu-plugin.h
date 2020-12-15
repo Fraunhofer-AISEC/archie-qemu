@@ -440,4 +440,6 @@ void plugin_flush_tb(void);
  */
 int plugin_rw_memory_cpu(uint64_t address, uint8_t buffer[], size_t buf_size, char write);
 
+void plugin_single_step(int enable);
+
 #endif /* QEMU_PLUGIN_API_H */

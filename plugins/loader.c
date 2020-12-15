@@ -29,12 +29,12 @@
 #include "hw/core/cpu.h"
 #include "cpu.h"
 #include "exec/exec-all.h"
-//#include "exec/cpu-all.h"
 #ifndef CONFIG_USER_ONLY
 #include "hw/boards.h"
 #endif
 
 #include "plugin.h"
+
 
 /*
  * For convenience we use a bitmap for plugin.mask, but really all we need is a
@@ -411,6 +411,30 @@ void write_arm_reg(int reg, uint32_t val)
 
 	arm_cpu_gdb_write_register(current_cpu, (uint8_t *) &val, reg);
 }
+
+void plugin_single_step(int enable)
+{
+	static int orig_value; //preserv original value
+	static int executed = 0;
+	if(unlikely(executed == 0))
+	{
+		orig_value = singlestep; // save original value
+		executed = 1; // now mark, that function was executed at least once
+	}
+	if(enable == 1)
+	{
+		singlestep = 1; //flag, that globaly forces qemu into singlestep mode. setup in softmmu/vl.c
+	}
+	else
+	{
+		singlestep = orig_value;
+	}
+	//Force flush tb cach to bring singlestep into effect
+	tb_flush(current_cpu);
+}
+
+
+
 
 void plugin_reset_uninstall(qemu_plugin_id_t id,
                             qemu_plugin_simple_cb_t cb,
