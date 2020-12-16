@@ -259,6 +259,42 @@ int mem_comparison_func(const void *tbl_a, const void *tbl_b, void *tbl_param)
 //void * tbl_copy_func(void *tbl_item, void *tbl_param);
 //void tbl_destry_funv(void *tbl_itme, void *tbl_param);
 
+uint64_t req_singlestep = 0;
+
+void init_singlestep_req()
+{
+	req_singlestep = 0;
+}
+
+void check_singlestep()
+{
+	if(req_singlestep == 0)
+	{
+		plugin_single_step(0);
+	}
+	else
+	{
+		plugin_single_step(1);
+	}
+}
+
+void add_singlestep_req()
+{
+	qemu_plugin_outs("[SINGLESTEP]: increase reqest\n");
+	req_singlestep++;
+	check_singlestep();
+}
+
+void rem_singlestep_req()
+{
+	if(req_singlestep != 0)
+	{
+		qemu_plugin_outs("[SINGLESTEP]: decrease reqest\n");
+		req_singlestep--;
+		check_singlestep();
+	}
+}
+
 /*QEMU plugin Version control. This is needed to specify for which qemu api version this plugin was build.
  * Qemu woll block, if version is to old to handle incampatibility inside the api
  */
@@ -942,6 +978,7 @@ void inject_fault(fault_list_t * current)
 		first_fault_injected = 1;
 		//Remove fault trigger
 		*(fault_trigger_addresses + current->fault.trigger.trignum) = 0;
+		rem_singlestep_req();
 		if(current->fault.lifetime != 0)
 		{
 			if(current->fault.type == FLASH)
@@ -1009,9 +1046,15 @@ void handle_first_tb_fault_insertion()
 	{
 		if(current->fault.trigger.hitcounter == 0 && current->fault.type == FLASH )
 		{
+			add_singlestep_req(); // force singlestep mode for compatibility
 			qemu_plugin_outs("Insert first fault\n");
 			inject_fault(current);
 			*(fault_trigger_addresses + current->fault.trigger.trignum) = 0; //Remove trigger from vector
+		}
+		if(current->fault.trigger.hitcounter == 1)
+		{
+			//we need to force singlestep mode for precission reasons
+			add_singlestep_req();
 		}
 		current = return_next( current);
 	}
@@ -1058,6 +1101,10 @@ void trigger_insn_cb(unsigned int vcpu_index, void *vcurrent)
 			/*Trigger met, Inject fault*/
 			qemu_plugin_outs("Trigger reached level, inject fault\n");
 			inject_fault(current);
+		}
+		if(current->fault.trigger.hitcounter == 1)
+		{
+			add_singlestep_req();
 		}
 	}
 	else
@@ -1372,7 +1419,7 @@ void tb_exec_data_event(unsigned int vcpu_index, void *vcurrent)
 	num_exec_order++;
 	//TODO
 	//Build Abbortion logic here. Because this will be executed every tb
-	if(start_point.hitcounter != 3)
+	/*if(start_point.hitcounter != 3)
 	{
 		if(tb_counter == tb_counter_max)
 		{
@@ -1380,7 +1427,7 @@ void tb_exec_data_event(unsigned int vcpu_index, void *vcurrent)
 			plugin_end_information_dump();
 		}
 		tb_counter++;
-	}
+	}*/
 	//
 	//DEBUG	
 	//	g_autoptr(GString) out = g_string_new("");
@@ -1390,14 +1437,15 @@ void tb_exec_data_event(unsigned int vcpu_index, void *vcurrent)
 
 void tb_exec_end_max_event(unsigned int vcpu_index, void *vcurrent)
 {
+	int ins = (int) vcurrent;
 	if(start_point.hitcounter != 3)
 	{	
-		if(tb_counter == tb_counter_max)
+		if(tb_counter >= tb_counter_max)
 		{
 			qemu_plugin_outs("[Max tb]: max tb counter reached");
 			plugin_end_information_dump();
 		}
-		tb_counter++;
+		tb_counter = tb_counter + ins;
 	}
 }
 
@@ -1527,10 +1575,8 @@ void handle_tb_translate_data(struct qemu_plugin_tb *tb)
 	{
 		qemu_plugin_register_vcpu_tb_exec_cb(tb, tb_exec_data_event, QEMU_PLUGIN_CB_RW_REGS, tb_information);
 	}
-	else
-	{
-		qemu_plugin_register_vcpu_tb_exec_cb(tb, tb_exec_end_max_event, QEMU_PLUGIN_CB_RW_REGS, tb_information);
-	}
+	//inject counter
+	qemu_plugin_register_vcpu_tb_exec_cb(tb, tb_exec_end_max_event, QEMU_PLUGIN_CB_RW_REGS, (void *) tb->n);
 	if( mem_info_list_enabled == 1)
 	{
 		for(int i = 0; i < tb->n; i++)
@@ -1876,6 +1922,7 @@ int initialise_plugin(GString * out, int argc, char **argv)
 	g_string_append_printf(out, "[Info]: Initialisation of FIFO.......Done!\n");
 	init_memory_module();
 	init_register_module(ARM);
+	init_singlestep_req();
 }
 
 /**
