@@ -78,9 +78,9 @@ fifos_t * pipes;
 fault_list_t *first_fault;
 
 uint64_t *	fault_trigger_addresses;
-uint64_t *	fault_addresses;
+fault_list_t  **live_faults;
 int	fault_number;
-int	exec_callback;
+int	live_faults_number;
 int 	first_tb;
 
 int first_fault_injected;
@@ -136,6 +136,7 @@ typedef struct tb_exec_order_t
 {
 	tb_info_t *tb_info;
 	tb_exec_order_t *prev;
+	tb_exec_order_t *next;
 }tb_exec_order_t;
 
 tb_exec_order_t *tb_exec_order_list;
@@ -645,23 +646,6 @@ fault_list_t * get_fault_struct_by_trigger(uint64_t fault_trigger_address, uint6
 	return NULL;
 }
 
-fault_list_t * get_fault_struct_by_exec(uint64_t exec_callback_address, uint64_t exec_number)
-{
-	fault_list_t * current = first_fault;
-	while(current != NULL)
-	{
-		if((current->fault.address == exec_callback_address) || (current->fault.trigger.address == exec_callback_address))
-		{
-			if(current->fault.trigger.trignum == exec_number)
-			{
-				return current;
-			}
-		}
-		current = current->next;
-	}
-	return NULL;
-}
-
 
 /**
  * register_fault_address
@@ -693,9 +677,9 @@ int register_fault_trigger_addresses()
 	fault_number = i;
 	g_string_append_printf(out, "[DEBUG]: Fault number %i\n", fault_number);
 	/* Reserve Memory for "Vector"*/
-	fault_trigger_addresses = malloc(sizeof(uint64_t) * fault_number);
-	fault_addresses = malloc(sizeof(uint64_t) * fault_number);
-	if(fault_trigger_addresses == NULL || fault_addresses == NULL)
+	fault_trigger_addresses = malloc(sizeof(fault_trigger_addresses) * fault_number);
+	live_faults = malloc(sizeof(*live_faults) * fault_number);
+	if(fault_trigger_addresses == NULL || live_faults == NULL)
 	{
 		g_string_append_printf(out, "[ERROR]: malloc failed here in registerfaulttrigger\n");
 		qemu_plugin_outs(out->str);
@@ -707,9 +691,9 @@ int register_fault_trigger_addresses()
 		/* Fill Vector with value*/
 		*(fault_trigger_addresses + j) = get_fault_trigger_address(current);
 		set_fault_trigger_num(current, j);
-		*(fault_addresses + j) = 0;	
+		*(live_faults + j) = NULL;	
 		g_string_append_printf(out, "[Fault]: fault trigger addresses: %p\n", fault_trigger_addresses+j);
-		g_string_append_printf(out, "[Fault]: fault addresses: %p\n", fault_addresses+j);
+		g_string_append_printf(out, "[Fault]: live faults addresses: %p\n", live_faults+j);
 		current = return_next(current);	
 	}
 	qemu_plugin_outs(out->str);
@@ -837,24 +821,25 @@ void process_toggle_memory(uint64_t address, uint8_t  mask[], uint8_t restoremas
 }
 
 /**
- * register_exec_callback
+ * register_live_faults_callback
  *
- * This function is called, when the exec callback is needed. This vector is used, if fault is inserted.
+ * This function is called, when the live faults callback is needed. This vector is used, if fault is inserted.
  * It is checked to locate the faults struct, that where inserted
  */
-int register_exec_callback(uint64_t address)
+int register_live_faults_callback(fault_list_t *fault)
 {
-	if(exec_callback == fault_number )
+	if(live_faults_number == fault_number )
 	{	
 		g_autoptr(GString) out = g_string_new("");
-		g_string_printf(out, "[ERROR]: Reached max exec callbacks. Something went totaly wrong!\n[ERROR]: exec_callback %i\n[ERROR]: fault_number %i", exec_callback, fault_number);
+		g_string_printf(out, "[ERROR]: Reached max exec callbacks. Something went totaly wrong!\n[ERROR]: live_callback %i\n[ERROR]: fault_number %i", live_faults_number, fault_number);
 		qemu_plugin_outs(out->str);
 		return -1;
 	}
 	qemu_plugin_outs("[Fault]: Register exec callback\n");
-	*(fault_addresses + exec_callback) = address;
-	exec_callback++;
-	return exec_callback - 1;
+	add_singlestep_req();
+	*(live_faults + live_faults_number) = fault;
+	live_faults_number++;
+	return live_faults_number - 1;
 }
 
 /**
@@ -981,14 +966,7 @@ void inject_fault(fault_list_t * current)
 		rem_singlestep_req();
 		if(current->fault.lifetime != 0)
 		{
-			if(current->fault.type == FLASH)
-			{
-				current->fault.trigger.trignum = register_exec_callback(current->fault.address);
-			}
-			else
-			{
-				current->fault.trigger.trignum = register_exec_callback(current->fault.trigger.address);
-			}
+				current->fault.trigger.trignum = register_live_faults_callback(current);
 		}
 	}
 }
@@ -1025,6 +1003,7 @@ void reverse_fault(fault_list_t * current)
 			reverse_register_fault( current);
 		}
 	}
+	rem_singlestep_req();
 }
 
 
@@ -1125,12 +1104,12 @@ void tb_exec_cb(unsigned int vcpu_index, void *userdata)
 	if(current->fault.lifetime != 0)
 	{
 		current->fault.lifetime = current->fault.lifetime - 1;
-		qemu_plugin_outs("[TB Exec] Exec eval function reached\n");
+		qemu_plugin_outs("[live fault] live fault eval function reached\n");
 		if(current->fault.lifetime == 0)
 		{
-			qemu_plugin_outs("[TB Exec] Exec lifetime fault reached, reverse fault");
+			qemu_plugin_outs("[live fault] lifetime fault reached, reverse fault\n");
 			reverse_fault(current);
-			*(fault_addresses + current->fault.trigger.trignum) = 0;
+			*(live_faults + current->fault.trigger.trignum) = NULL;
 		}
 	}
 	else
@@ -1180,17 +1159,17 @@ void insn_exec_cb(unsigned int vcpu_index, void *userdata)
 }
 
 /**
- * eval_exec_callback
+ * eval_live_fault_callback
  *
  * This function evaluates if the exec callback is needed to be registered. Also makes sure that fault is reverted, if lifetime is zero
  *
  * tb: Information provided by the api about the translated block
- * exec_callback_number: Position in vector. Needed to find fault struct
+ * live_fault_callback_number: Position in vector. Needed to find fault struct
  */
-void eval_exec_callback(struct qemu_plugin_tb *tb, int exec_callback_number)
+void eval_live_fault_callback(struct qemu_plugin_tb *tb, int live_fault_callback_number)
 {
 
-	fault_list_t * current = get_fault_struct_by_exec((uint64_t) *(fault_addresses + exec_callback_number), exec_callback_number);
+	fault_list_t * current = *(live_faults + live_fault_callback_number);
 	if(current == NULL)
 	{
 		qemu_plugin_outs("[ERROR]: Found no exec to be called back!\n");
@@ -1199,29 +1178,18 @@ void eval_exec_callback(struct qemu_plugin_tb *tb, int exec_callback_number)
 	if(current->fault.lifetime == 0)
 	{
 		//Remove exec callback
-		*(fault_addresses + exec_callback_number) = 0;
-		qemu_plugin_outs("[TB Exec]: Remove exec callback\n");
+		*(live_faults + live_fault_callback_number) = NULL;
+		qemu_plugin_outs("[Live faults WARNING]: Remove live faults callback\n");
+		rem_singlestep_req();
 	}
 	else
 	{
-		int address;
-		if (current->fault.type != FLASH)
-		{
-			address = current->fault.trigger.address;
-		}
-		else
-		{
-			address = current->fault.address;
-		}
 		/* Register exec callback*/
 		for(int i = 0; i < tb->n; i++)
 		{
 			struct qemu_plugin_insn *insn = qemu_plugin_tb_get_insn(tb, i);
-			if((( address >= qemu_plugin_insn_vaddr(insn))&&(address < qemu_plugin_insn_vaddr(insn) + qemu_plugin_insn_size(insn)))) 
-			{
-				qemu_plugin_outs("[TB Exec]: Register exec callback function\n");
-				qemu_plugin_register_vcpu_insn_exec_cb(insn, tb_exec_cb, QEMU_PLUGIN_CB_RW_REGS, current);
-			}	
+			qemu_plugin_outs("[TB Exec]: Register exec callback function\n");
+			qemu_plugin_register_vcpu_insn_exec_cb(insn, tb_exec_cb, QEMU_PLUGIN_CB_RW_REGS, current);	
 		}
 	}
 }
@@ -1281,11 +1249,8 @@ void plugin_dump_tb_information()
 		g_string_printf(out, "$$0x%lx | 0x%lx | 0x%lx | 0x%lx | %s \n", item->base_address, item->size, item->instruction_count, item->num_of_exec, item->assembler->str );
 		plugin_write_to_data_pipe(out->str, out->len);
 		item = item->next;
-		//	free(tb_info_list);
-		//	tb_info_list = item;
 	}
 
-	//tb_info_t *tb_info_list;
 }
 
 /**
@@ -1295,6 +1260,7 @@ void plugin_dump_tb_information()
  */
 void plugin_dump_tb_exec_order()
 {
+	uint64_t i = 0;
 	if(tb_exec_order_list == NULL)
 	{
 		return;
@@ -1303,14 +1269,24 @@ void plugin_dump_tb_exec_order()
 	g_string_printf(out, "$$$[TB Exec]:\n");
 	plugin_write_to_data_pipe(out->str, out->len);
 	tb_exec_order_t *item =  tb_exec_order_list;
+
+	while(item->prev != NULL)
+	{
+		i++;
+		item = item->prev;
+	}
+	i++;
+	if(i != num_exec_order)
+	{
+		qemu_plugin_outs("[WARNING]: i und numexec sind nicht gleich !\n");
+	}
+	i = 0;
 	while(item != NULL)
 	{
-		g_string_printf(out, "$$ 0x%lx | %li \n", item->tb_info->base_address, num_exec_order);
+		g_string_printf(out, "$$ 0x%lx | %li \n", item->tb_info->base_address, i);
 		plugin_write_to_data_pipe(out->str, out->len);
-		item = item->prev;
-		num_exec_order--;
-		//free(tb_exec_order_list);
-		//tb_exec_order_list = item;
+		item = item->next;
+		i++;
 	}
 }
 
@@ -1335,8 +1311,6 @@ void plugin_dump_mem_information()
 		g_string_printf(out, "$$ 0x%lx | 0x%lx | 0x%lx | 0x%x | 0x%lx \n", item->ins_address, item->size, item->memmory_address, item->direction, item->counter);
 		plugin_write_to_data_pipe(out->str, out->len);
 		item = item->next;
-		//free(mem_info_list);
-		//mem_info_list = item;
 	}
 }
 
@@ -1359,10 +1333,10 @@ void plugin_end_information_dump()
 	}
 	if(memory_module_configured())
 	{
-		qemu_plugin_outs("[DEBUG]: Read memory regions confiugred");
+		qemu_plugin_outs("[DEBUG]: Read memory regions confiugred\n");
 		read_all_memory();
 	}
-	qemu_plugin_outs("[DEBUG]: Read registers");
+	qemu_plugin_outs("[DEBUG]: Read registers\n");
 	add_new_registerdump(tb_counter);
 	qemu_plugin_outs("[DEBUG]: Start printing to data pipe tb information\n");
 	plugin_dump_tb_information();
@@ -1414,20 +1388,14 @@ void tb_exec_data_event(unsigned int vcpu_index, void *vcurrent)
 	}
 	tb_exec_order_t *last = malloc(sizeof(tb_exec_order_t));
 	last->tb_info = tb_info;
+	last->next = NULL;
 	last->prev = tb_exec_order_list;
+	if(tb_exec_order_list != NULL)
+	{
+		tb_exec_order_list->next = last;
+	}
 	tb_exec_order_list = last;
 	num_exec_order++;
-	//TODO
-	//Build Abbortion logic here. Because this will be executed every tb
-	/*if(start_point.hitcounter != 3)
-	{
-		if(tb_counter == tb_counter_max)
-		{
-			qemu_plugin_outs("[Max tb]: max tb counter reached");
-			plugin_end_information_dump();
-		}
-		tb_counter++;
-	}*/
 	//
 	//DEBUG	
 	//	g_autoptr(GString) out = g_string_new("");
@@ -1499,15 +1467,15 @@ void handle_tb_translate_event(struct qemu_plugin_tb *tb)
 		}
 	}
 	/* Verify, if exec callback is requested */
-	for(int i = 0; i < exec_callback; i++)
+	for(int i = 0; i < live_faults_number; i++)
 	{
 		//qemu_plugin_outs("[Lifetime] Check livetime\n");
-		if((tb->vaddr <= *(fault_addresses + i)) && ((tb->vaddr + tb_size) > *(fault_addresses + i)))
+		if(*(live_faults + i) != NULL)
 		{
 			g_autoptr(GString) out = g_string_new("");
-			g_string_printf(out, "[TB exec] Reached exec callback event\n");
+			g_string_printf(out, "[TB exec] Reached live fault callback event\n");
 			qemu_plugin_outs(out->str);
-			eval_exec_callback(tb, i);
+			eval_live_fault_callback(tb, i);
 		}
 	}
 }
@@ -1587,7 +1555,7 @@ void handle_tb_translate_data(struct qemu_plugin_tb *tb)
 	}
 	//DEBUG
 	GString *assembler = decode_assembler(tb);
-	g_string_append_printf(out, "[TB Info] tb id: %8lx\n[TB Info] tb size: %li\n[TB Info] Assembler:\n%s", tb->vaddr, tb->n, assembler->str);
+	g_string_append_printf(out, "[TB Info] tb id: %8lx\n[TB Info] tb size: %li\n[TB Info] Assembler:\n%s\n", tb->vaddr, tb->n, assembler->str);
 	g_string_free(assembler, TRUE);
 
 
@@ -1862,10 +1830,10 @@ int initialise_plugin(GString * out, int argc, char **argv)
 	// Pointer for array, that is dynamically scaled for the number of faults registered.
 	// It is used to fastly look if a trigger condition might be reached
 	fault_trigger_addresses = NULL;
-	// Pointer to array, that is dynamically scaled for the number of faults registered.
-	// It is used to fastly look up injected faults and their livetime in the system.
+	// Pointer to array, that is dynamically scaled for the number of faults regigisterd
+	// It contains the pointer to fault structs, which livetime is not zero
 	// If livetime of fault reaches zero it undoes the fault. If zero it is permanent.
-	fault_addresses = NULL;
+	live_faults = NULL;
 	// AVL tree used in collecting data. This contains the tbs infos of all generated tbs.
 	// The id of a tb is its base address
 	tb_avl_root = NULL;
@@ -1878,7 +1846,7 @@ int initialise_plugin(GString * out, int argc, char **argv)
 	//
 	mem_info_list = NULL;
 	//
-	exec_callback = 0;
+	live_faults_number = 0;
 	// Used to determen if the tb generating is first executed
 	first_tb = 0;
 	// Used to determen if the first fault is injected
