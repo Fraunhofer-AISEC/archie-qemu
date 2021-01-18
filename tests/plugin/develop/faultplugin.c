@@ -1360,7 +1360,7 @@ void plugin_end_information_dump()
 	qemu_plugin_outs("[DEBUG]: Delete memorydump\n");
 	delete_memory_dump();
 	qemu_plugin_outs("[DEBUG]: This is the End\n");
-	plugin_write_to_data_pipe("$$$[END]", 8);
+	plugin_write_to_data_pipe("$$$[END]\n", 9);
 	//Insert deliberate error to cancle exec
 	//TODO Build good exit to qemu
 	//while(1);
