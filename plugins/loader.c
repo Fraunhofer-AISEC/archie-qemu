@@ -420,6 +420,9 @@ void plugin_single_step(int enable)
 	{
 		orig_value = singlestep; // save original value
 		executed = 1; // now mark, that function was executed at least once
+		g_autoptr(GString) out = g_string_new("");
+		g_string_printf(out, "[SINGLESTEP_API]: %i\n", orig_value);
+		qemu_log_mask(CPU_LOG_PLUGIN, "%s", out->str);
 	}
 	if(enable == 1)
 	{
@@ -428,6 +431,9 @@ void plugin_single_step(int enable)
 	else
 	{
 		singlestep = orig_value;
+		g_autoptr(GString) out = g_string_new("");
+		g_string_printf(out, "[SINGLESTEP_API]: %i\n", singlestep);
+		qemu_log_mask(CPU_LOG_PLUGIN, "%s", out->str);
 	}
 	//Force flush tb cach to bring singlestep into effect
 	tb_flush(current_cpu);
