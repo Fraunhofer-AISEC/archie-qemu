@@ -21,6 +21,7 @@
 
 #include "faultdata.h"
 #include "registerdump.h"
+#include "singlestep.h"
 //DEBUG
 #include <errno.h>
 #include <string.h>
@@ -260,48 +261,6 @@ int mem_comparison_func(const void *tbl_a, const void *tbl_b, void *tbl_param)
 //void * tbl_copy_func(void *tbl_item, void *tbl_param);
 //void tbl_destry_funv(void *tbl_itme, void *tbl_param);
 
-volatile uint64_t req_singlestep = 0;
-
-void init_singlestep_req()
-{
-	req_singlestep = 0;
-}
-
-void check_singlestep()
-{
-	if(req_singlestep == 0)
-	{
-		plugin_single_step(0);
-	}
-	else
-	{
-		plugin_single_step(1);
-	}
-	plugin_flush_tb();
-}
-
-void add_singlestep_req()
-{
-	g_autoptr(GString) out = g_string_new("");
-	qemu_plugin_outs("[SINGLESTEP]: increase reqest\n");
-	req_singlestep++;
-	g_string_printf(out, "[SINGLESTEP]: requests %li\n", req_singlestep);
-	qemu_plugin_outs(out->str);
-	check_singlestep();
-}
-
-void rem_singlestep_req()
-{
-	if(req_singlestep != 0)
-	{
-		g_autoptr(GString) out = g_string_new("");
-		qemu_plugin_outs("[SINGLESTEP]: decrease reqest\n");
-		req_singlestep--;
-		g_string_printf(out, "[SINGLESTEP]: requests %li\n", req_singlestep);
-		qemu_plugin_outs(out->str);
-		check_singlestep();
-	}
-}
 
 /*QEMU plugin Version control. This is needed to specify for which qemu api version this plugin was build.
  * Qemu woll block, if version is to old to handle incampatibility inside the api
