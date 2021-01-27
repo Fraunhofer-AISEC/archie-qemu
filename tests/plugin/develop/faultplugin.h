@@ -5,6 +5,8 @@
 #include <inttypes.h>
 #include <glib.h>
 
+enum{ SRAM, FLASH, REGISTER};
+enum{ SET0, SET1, TOGGLE};
 
 
 

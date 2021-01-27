@@ -22,6 +22,7 @@
 #include "faultdata.h"
 #include "registerdump.h"
 #include "singlestep.h"
+#include "fault_list.h"
 //DEBUG
 #include <errno.h>
 #include <string.h>
@@ -36,8 +37,6 @@
 #endif
 
 
-enum{ SRAM, FLASH, REGISTER};
-enum{ SET0, SET1, TOGGLE};
 
 typedef struct
 {
@@ -46,37 +45,11 @@ typedef struct
 	int data;
 } fifos_t;
 
-typedef struct
-{
-	uint64_t address; //uint64_t?
-	uint64_t hitcounter;
-	uint64_t trignum;
-} fault_trigger_t;
-
-typedef struct
-{
-	uint64_t address; //uint64_t?
-	uint64_t type; //Typedef enum?
-	uint64_t model;
-	uint64_t lifetime;
-	uint8_t mask[16]; // uint8_t array?
-	uint8_t restoremask[16];
-	fault_trigger_t trigger;
-} fault_t;
-
-typedef struct fault_list_t fault_list_t;
-typedef struct fault_list_t
-{
-	fault_list_t *next;
-	fault_t fault;
-} fault_list_t;
-
 
 /* Global data structures */
 
 fifos_t * pipes;
 
-fault_list_t *first_fault;
 
 uint64_t *	fault_trigger_addresses;
 fault_list_t  **live_faults;
@@ -502,118 +475,6 @@ int qemu_setup_config()
 
 
 /**
- * add fault
- *
- * This function appends one fault to the linked list. 
- *
- * fault_address: address of fault
- * fault_type: type of fault. see enum on implemented targets
- * fault_model: model of fault. see enum on implemented fault models
- * fault_lifetime: How long should the fault reside. 0 means indefinitely
- * fault_mask: bitmask on which bits should be targeted.
- * fault_trigger_address: Address of trigger location. Fault will be injected if this location is reached
- * fault_trigger_hitcounter: set how many times the location needs to be reached before the fault is injected
- * 
- * return -1 if fault
- */
-int add_fault(uint64_t fault_address, uint64_t fault_type, uint64_t fault_model, uint64_t fault_lifetime, uint8_t fault_mask[16], uint64_t fault_trigger_address, uint64_t fault_trigger_hitcounter )
-{
-	fault_list_t *new_fault;
-	new_fault = malloc(sizeof(fault_list_t));
-	if( new_fault == NULL)
-	{
-		return -1;
-	}
-	new_fault->next = NULL;
-	new_fault->fault.address = fault_address;
-	new_fault->fault.type = fault_type;
-	new_fault->fault.model = fault_model;
-	new_fault->fault.lifetime = fault_lifetime;
-	//new_fault->fault.mask = fault_mask;
-	new_fault->fault.trigger.address = fault_trigger_address;
-	new_fault->fault.trigger.hitcounter = fault_trigger_hitcounter;
-	for(int i = 0; i < 16; i++)
-	{	
-		new_fault->fault.restoremask[i] = 0;
-		new_fault->fault.mask[i] = fault_mask[i];
-	}
-	if(first_fault != NULL)
-	{
-		new_fault->next = first_fault;
-	}
-	first_fault = new_fault;
-	return 0;
-}
-
-/**
- *
- * delete_fault_queue
- *
- * This function removes faults from linked list
- *
- */
-void delete_fault_queue()
-{
-	fault_list_t *del_item = NULL;
-	while(first_fault != NULL)
-	{
-		del_item = first_fault;
-		first_fault = first_fault->next;
-		free(del_item);
-	}
-}
-
-/**
- * return_next
- *
- * function to return next pointer.
- * This is to be able to change the current link list if desired
- */
-fault_list_t * return_next(fault_list_t * current)
-{
-	return current->next;
-}
-
-/**
- * get_fault_trigger_address
- *
- * function to return the fault address. 
- * This is to be able to change the current data structure if needed
- */
-uint64_t get_fault_trigger_address(fault_list_t * current)
-{
-	return current->fault.trigger.address;
-}
-
-/**
- * set_fault_trigger_num
- *
- * Function sets the trigger num field. This is done to sepperate between two triggers with the same address
- */
-void set_fault_trigger_num(fault_list_t * current, uint64_t trignum)
-{
-	current->fault.trigger.trignum = trignum;
-}
-
-fault_list_t * get_fault_struct_by_trigger(uint64_t fault_trigger_address, uint64_t fault_trigger_number)
-{
-	fault_list_t * current = first_fault;
-	while(current != NULL)
-	{
-		if(current->fault.trigger.address == fault_trigger_address)
-		{
-			if(current->fault.trigger.trignum == fault_trigger_number)
-			{
-				return current;
-			}
-		}
-		current = current->next;
-	}
-	return NULL;
-}
-
-
-/**
  * register_fault_address
  *
  * This function will fill the global fault trigger address array and fault address array
@@ -623,7 +484,7 @@ int register_fault_trigger_addresses()
 	g_autoptr(GString) out = g_string_new("");
 	g_string_printf(out, "[Info]: Calculate number of faults .......");
 	/*Select first element of list*/
-	fault_list_t * current = first_fault;
+	fault_list_t * current = return_first_fault();
 	int i = 0;
 	/*traverse list*/
 	while(current != NULL)
@@ -639,7 +500,7 @@ int register_fault_trigger_addresses()
 		return -1;
 	}
 	/* Reset back to firs element*/
-	current = first_fault;
+	current = return_first_fault();
 	fault_number = i;
 	g_string_append_printf(out, "[DEBUG]: Fault number %i\n", fault_number);
 	/* Reserve Memory for "Vector"*/
@@ -984,7 +845,7 @@ void handle_first_tb_fault_insertion()
 
 	g_autoptr(GString) out = g_string_new("");
 	g_string_printf(out, "Look into if we need to insert a fault!\n");
-	fault_list_t * current = first_fault;
+	fault_list_t * current = return_first_fault();
 	qemu_plugin_outs(out->str);
 	g_string_printf(out, " ");
 	while(current != NULL)
@@ -1417,7 +1278,6 @@ void tb_exec_start_cb(unsigned int vcpu_index, void *vcurrent)
  */
 void handle_tb_translate_event(struct qemu_plugin_tb *tb)
 {
-	fault_list_t * current = first_fault;
 	size_t tb_size = calculate_bytesize_instructions(tb);
 	qemu_plugin_outs("Reached tb handle function\n");
 	//qemu_plugin_register_vcpu_tb_exec_cb(tb, tb_exec_cb, QEMU_PLUGIN_CB_RW_REGS, NULL);
@@ -1790,7 +1650,7 @@ int initialise_plugin(GString * out, int argc, char **argv)
 	// Global fifo data structure for control, data and config
 	pipes = NULL;
 	// Start pointer for linked list of faults
-	first_fault = NULL;
+	init_fault_list();
 	// Number of faults registered in plugin
 	fault_number = 0;
 	// Pointer for array, that is dynamically scaled for the number of faults registered.
@@ -1896,7 +1756,7 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 	{
 		goto ABORT;
 	}
-	g_string_append_printf(out, "[Info]: Linked list entry address: %p\n", first_fault);	
+	g_string_append_printf(out, "[Info]: Linked list entry address: %p\n", return_first_fault());	
 
 	g_string_append_printf(out, "[Info]: Register fault trigger addresses\n");
 	qemu_plugin_outs(out->str);
