@@ -50,10 +50,13 @@ singlestep.o: singlestep.c
 fault_list.o: fault_list.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+fault_injection.o: fault_injection.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-lib%.so: %.o lib/avl.o faultdata.o registerdump.o singlestep.o fault_list.o
+lib%.so: %.o lib/avl.o faultdata.o registerdump.o singlestep.o fault_list.o fault_injection.o
 	$(CC) -shared -Wl,-soname,$@ -o $@ $^ $(LDLIBS)
 
 clean:
