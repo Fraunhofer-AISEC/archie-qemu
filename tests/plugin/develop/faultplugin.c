@@ -260,7 +260,7 @@ int mem_comparison_func(const void *tbl_a, const void *tbl_b, void *tbl_param)
 //void * tbl_copy_func(void *tbl_item, void *tbl_param);
 //void tbl_destry_funv(void *tbl_itme, void *tbl_param);
 
-uint64_t req_singlestep = 0;
+volatile uint64_t req_singlestep = 0;
 
 void init_singlestep_req()
 {
@@ -277,12 +277,16 @@ void check_singlestep()
 	{
 		plugin_single_step(1);
 	}
+	plugin_flush_tb();
 }
 
 void add_singlestep_req()
 {
+	g_autoptr(GString) out = g_string_new("");
 	qemu_plugin_outs("[SINGLESTEP]: increase reqest\n");
 	req_singlestep++;
+	g_string_printf(out, "[SINGLESTEP]: requests %li\n", req_singlestep);
+	qemu_plugin_outs(out->str);
 	check_singlestep();
 }
 
@@ -290,8 +294,11 @@ void rem_singlestep_req()
 {
 	if(req_singlestep != 0)
 	{
+		g_autoptr(GString) out = g_string_new("");
 		qemu_plugin_outs("[SINGLESTEP]: decrease reqest\n");
 		req_singlestep--;
+		g_string_printf(out, "[SINGLESTEP]: requests %li\n", req_singlestep);
+		qemu_plugin_outs(out->str);
 		check_singlestep();
 	}
 }
@@ -1405,7 +1412,7 @@ void tb_exec_data_event(unsigned int vcpu_index, void *vcurrent)
 
 void tb_exec_end_max_event(unsigned int vcpu_index, void *vcurrent)
 {
-	int ins = (int) vcurrent;
+	size_t ins = (size_t) vcurrent;
 	if(start_point.hitcounter != 3)
 	{	
 		if(tb_counter >= tb_counter_max)
