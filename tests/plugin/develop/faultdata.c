@@ -115,7 +115,7 @@ int insert_memorydump_config(uint64_t baseaddress, uint64_t len)
 			*(*(tmp->buf + j) + i) = 0;
 		}
 	}
-	g_string_printf(out,"[DEBUG]: Config was address %08x len %i\n", baseaddress, len);
+	g_string_printf(out,"[DEBUG]: Config was address %08lx len %li\n", baseaddress, len);
 	qemu_plugin_outs(out->str);
 	return 1;
 }

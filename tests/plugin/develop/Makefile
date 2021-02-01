@@ -56,10 +56,13 @@ fault_injection.o: fault_injection.c
 tb_info_data_collection.o: tb_info_data_collection.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+tb_exec_data_collection.o: tb_exec_data_collection.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-lib%.so: %.o lib/avl.o faultdata.o registerdump.o singlestep.o fault_list.o fault_injection.o tb_info_data_collection.o
+lib%.so: %.o lib/avl.o faultdata.o registerdump.o singlestep.o fault_list.o fault_injection.o tb_info_data_collection.o tb_exec_data_collection.o
 	$(CC) -shared -Wl,-soname,$@ -o $@ $^ $(LDLIBS)
 
 clean:

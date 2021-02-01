@@ -2,7 +2,7 @@
 #define TB_INFO_DATA_COLLECTION
 
 #include "lib/avl.h"
-#include "glib.h"
+//#include "glib.h"
 #include "stdint.h"
 #include "qemu/osdep.h"
 #include "qemu-common.h"
