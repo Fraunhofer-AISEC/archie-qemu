@@ -24,6 +24,7 @@
 #include "singlestep.h"
 #include "fault_list.h"
 #include "fault_injection.h"
+#include "tb_info_data_collection.h"
 //DEBUG
 #include <errno.h>
 #include <string.h>
@@ -68,41 +69,7 @@ fault_trigger_t start_point;
 fault_trigger_t end_point;
 
 
-/*Output TB data structures*/
-typedef struct tb_info_t tb_info_t;
-typedef struct tb_info_t
-{
-	uint64_t base_address;
-	uint64_t size;
-	uint64_t instruction_count;
-	GString * assembler;
-	uint64_t num_of_exec; // Number of executions(aka a counter)
-	tb_info_t *next;
-}tb_info_t;
-
-tb_info_t *tb_info_list; 
 int tb_info_enabled;
-/*AVL global variables*/
-struct avl_table *tb_avl_root;
-
-/**
- * tb_info_free()
- *
- * function to delete the translation block information
- * structs from memory. Also deletes the avl tree
- */
-void tb_info_free()
-{
-	tb_info_t *item;
-	while(tb_info_list != NULL)
-	{
-		item = tb_info_list;
-		tb_info_list = tb_info_list->next;
-		free(item);
-	}
-	avl_destroy( tb_avl_root, NULL);
-	tb_avl_root = NULL;
-}
 
 
 typedef struct tb_exec_order_t tb_exec_order_t;
@@ -135,35 +102,6 @@ void tb_exec_order_free()
 }
 
 
-/**
- * tb_comparison_func
- *
- * Needed for avl library. it will determen which element is bigger of type tb_info_t.
- * see documentation of gnuavl lib for more information
- *
- * tbl_a: Element a to be compared
- * tbl_b: Element b to be compared
- * tbl_param: is not used by this avl tree. But can be used to give additional information
- * to the comparison function
- *
- * return if negativ, a is bigger, if possitiv b is bigger. If 0 it is the same element
- */
-int tb_comparison_func(const void *tbl_a, const void *tbl_b, void * tbl_param)
-{
-	//g_autoptr(GString) out = g_string_new("");
-	const tb_info_t * tb_a = tbl_a;
-	const tb_info_t * tb_b = tbl_b;
-	//g_string_printf(out, "[Info]: Compare function called\n");
-	//g_string_append_printf(out, "[Info]: a baseaddress: %p, b baseaddress: %p\n",tbl_a, tbl_b);
-	//qemu_plugin_outs(out->str);
-	if(tb_a->base_address < tb_b->base_address)
-	{
-
-		return -1;
-	}
-	else if(tb_a->base_address > tb_b->base_address) return 1;
-	else return 0;
-}
 
 /* datastructures für memory access*/
 /* avl tree is used for insn address*/
@@ -355,26 +293,6 @@ void print_assembler(struct qemu_plugin_tb *tb)
 	qemu_plugin_outs(out->str);
 }
 
-/**
- * decode_assembler()
- *
- * build string that is later provided to python. !! is the replacement for \n, as this would directly affect decoding.
- * 
- * tb: tb struct, that contains the information needed to get the assembler for the instructions inside the translation block.
- *
- * return: gstring object, that contains the assembly instructions. The object needs to be deleted by the function that called this function
- */
-GString* decode_assembler(struct qemu_plugin_tb *tb)
-{
-	GString* out = g_string_new("");
-
-	for(int i = 0; i < tb->n; i++)
-	{
-		struct qemu_plugin_insn * insn = qemu_plugin_tb_get_insn(tb, i);
-		g_string_append_printf(out, "[%8lx]: %s !!", insn->vaddr, qemu_plugin_insn_disas(insn));
-	}
-	return out;
-}
 
 /**
  *
@@ -604,23 +522,6 @@ void handle_first_tb_fault_insertion()
 }
 
 
-/*
- * calculate_bytesize_instructions
- *
- * Function to calculate size of TB. It uses the information of the tb and the last insn to determen the bytesize of the instructions inside the translation block
- */
-size_t calculate_bytesize_instructions(struct qemu_plugin_tb *tb)
-{
-	//g_autoptr(GString) out = g_string_new("");
-
-	struct qemu_plugin_insn * insn_first = qemu_plugin_tb_get_insn(tb, 0);
-	struct qemu_plugin_insn * insn_last = qemu_plugin_tb_get_insn(tb, tb->n -1);
-	uint64_t size = (insn_last->vaddr - insn_first->vaddr) + insn_last->data->len;
-	//g_string_printf(out, "[CALC]: tb instruction size is %li \n", size);
-
-	//qemu_plugin_outs(out->str);
-	return (size_t) size;
-}
 
 /**
  * trigger_insn_cb
@@ -789,31 +690,6 @@ int plugin_write_to_data_pipe(char *str, size_t len)
 }
 
 
-/**
- * plugin_dump_tb_information()
- *
- * Function that reads the tb information structs and prints each to the data pipe. Furthermore writes the command to python that it knows tb information is provided
- *
- *
- */
-void plugin_dump_tb_information()
-{
-	if(tb_info_list == NULL)
-	{
-		return;
-	}
-	g_autoptr(GString) out = g_string_new("");
-	g_string_printf(out, "$$$[TB Information]:\n");
-	plugin_write_to_data_pipe(out->str, out->len);
-	tb_info_t *item = tb_info_list;
-	while(item != NULL)
-	{
-		g_string_printf(out, "$$0x%lx | 0x%lx | 0x%lx | 0x%lx | %s \n", item->base_address, item->size, item->instruction_count, item->num_of_exec, item->assembler->str );
-		plugin_write_to_data_pipe(out->str, out->len);
-		item = item->next;
-	}
-
-}
 
 /**
  * plugin_dump_tb_exec_order
@@ -1041,6 +917,7 @@ void handle_tb_translate_event(struct qemu_plugin_tb *tb)
 	}
 }
 
+
 /**
  * handle_tb_translate_data
  *
@@ -1053,52 +930,10 @@ void handle_tb_translate_event(struct qemu_plugin_tb *tb)
 void handle_tb_translate_data(struct qemu_plugin_tb *tb)
 {
 	g_autoptr(GString) out = g_string_new("");
-	g_string_printf(out, "\n");
 	tb_info_t *tb_information = NULL;
 	if(tb_info_enabled == 1)
 	{
-		//TODO
-		//virt1 ist id der tb
-		tb_info_t tmp;
-		tmp.base_address = tb->vaddr;
-		g_string_append_printf(out, "[TB Info]: Search TB......");
-		//qemu_plugin_outs(out->str);
-		tb_information = (tb_info_t *) avl_find(tb_avl_root, &tmp); 	
-		if(tb_information == NULL)
-		{
-			tb_information = malloc(sizeof(tb_info_t));
-			if(tb_information == NULL)
-			{
-				return;
-			}
-			tb_information->base_address = tb->vaddr;
-			tb_information->instruction_count = tb->n;
-			tb_information->assembler = decode_assembler(tb);
-			tb_information->num_of_exec = 0;
-			tb_information->size = calculate_bytesize_instructions(tb);
-			tb_information->next = tb_info_list;
-			tb_info_list = tb_information;
-			g_string_append(out, "Not Found\n");
-			if( avl_insert(tb_avl_root, tb_information) != NULL)
-			{
-				qemu_plugin_outs("[ERROR]: Somthing went wrong in avl instert");
-				return;
-			}
-			else
-			{
-				if(avl_find(tb_avl_root, &tmp) != tb_information)
-				{
-					qemu_plugin_outs("[ERROR]: Conntent changed!");
-					return;
-				}
-			}
-			g_string_append(out, "[TB Info]: Done insertion into avl\n");
-			//qemu_plugin_outs(out->str);
-		}
-		else
-		{
-			g_string_append(out, "Found\n");
-		}
+		tb_information = add_tb_info(tb);
 	}
 	if(tb_exec_order_enabled == 1)
 	{
@@ -1395,11 +1230,6 @@ int initialise_plugin(GString * out, int argc, char **argv)
 	// It contains the pointer to fault structs, which livetime is not zero
 	// If livetime of fault reaches zero it undoes the fault. If zero it is permanent.
 	live_faults = NULL;
-	// AVL tree used in collecting data. This contains the tbs infos of all generated tbs.
-	// The id of a tb is its base address
-	tb_avl_root = NULL;
-	// Linked list of tb structs inside tb. Used to delete them.
-	tb_info_list = NULL;
 	// List of execution order of tbs.
 	tb_exec_order_list = NULL;
 	// 
@@ -1422,6 +1252,9 @@ int initialise_plugin(GString * out, int argc, char **argv)
 	end_point.address = 0;
 	end_point.hitcounter = 0;
 	end_point.trignum = 0;
+
+	// Init tb_info
+	tb_info_init();
 
 	//enable mem info logging
 	mem_info_list_enabled = 1;
@@ -1450,6 +1283,7 @@ int initialise_plugin(GString * out, int argc, char **argv)
 	init_memory_module();
 	init_register_module(ARM);
 	init_singlestep_req();
+	return 0;
 }
 
 /**
@@ -1502,8 +1336,7 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 	g_string_append(out, "[Info]: Register VCPU tb trans callback\n");
 	qemu_plugin_register_vcpu_tb_trans_cb( id, vcpu_translateblock_translation_event);
 	g_string_append(out, "[Info]: Initialise TB avl tree ....");
-	tb_avl_root = avl_create( &tb_comparison_func, NULL, NULL);
-	if(tb_avl_root == NULL)
+	if(tb_info_avl_init() == -1)
 	{
 		g_string_append(out, "ERROR\n[ERROR] TB avl tree initialisation failed\n");
 		goto ABORT;
@@ -1525,10 +1358,7 @@ ABORT:
 	{
 		avl_destroy(mem_avl_root, NULL);
 	}
-	if(tb_avl_root != NULL)
-	{
-		avl_destroy(tb_avl_root, NULL);
-	}
+	tb_info_free();
 	delete_fault_trigger_addresses();
 	delete_fault_queue();
 	g_string_append(out, "[ERROR]: Somthing went wrong. Abborting now!\n");
