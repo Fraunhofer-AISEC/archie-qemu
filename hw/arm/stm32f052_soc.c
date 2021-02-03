@@ -34,34 +34,35 @@
 
 /* At the moment only Timer 2 to 5 are modelled */
 /*static const uint32_t timer_addr[STM_NUM_TIMERS] = { 0x40000000, 0x40000400,
-    0x40000800, 0x40000C00 };
-static const uint32_t usart_addr[STM_NUM_USARTS] = { 0x40011000, 0x40004400,
-    0x40004800, 0x40004C00, 0x40005000, 0x40011400 };
-static const uint32_t adc_addr[STM_NUM_ADCS] = { 0x40012000, 0x40012100,
+    0x40000800, 0x40000C00 };*/
+static const uint32_t usart_addr[STM_NUM_USARTS] = { 0x40013800, 0x40004400,
+    0x40004800, 0x40004C00, 0x40005000, 0x40011400, 0x40011800, 0x40011c00 };
+/*static const uint32_t adc_addr[STM_NUM_ADCS] = { 0x40012000, 0x40012100,
     0x40012200 };
 static const uint32_t spi_addr[STM_NUM_SPIS] = { 0x40013000, 0x40003800,
     0x40003C00 };
 
-static const int timer_irq[STM_NUM_TIMERS] = {28, 29, 30, 50};
-static const int usart_irq[STM_NUM_USARTS] = {37, 38, 39, 52, 53, 71};
-#define ADC_IRQ 18
+static const int timer_irq[STM_NUM_TIMERS] = {28, 29, 30, 50}; */
+//Table 36 in RM0091
+static const int usart_irq[STM_NUM_USARTS] = {27, 28, 29, 29, 29, 29, 29, 29};
+/*#define ADC_IRQ 18
 static const int spi_irq[STM_NUM_SPIS] = {35, 36, 51};
 */
 static void stm32f052_soc_initfn(Object *obj)
 {
     STM32F052State *s = STM32F052_SOC(obj);
-//    int i;
+    int i;
 
     object_initialize_child(obj, "armv7m", &s->armv7m, TYPE_ARMV7M);
 
 //    object_initialize_child(obj, "syscfg", &s->syscfg, TYPE_STM32F2XX_SYSCFG);
 
-  /*  for (i = 0; i < STM_NUM_USARTS; i++) {
+   for (i = 0; i < STM_NUM_USARTS; i++) {
         object_initialize_child(obj, "usart[*]", &s->usart[i],
-                                TYPE_STM32F2XX_USART);
+                                TYPE_STM32F0XX_USART);
     }
 
-    for (i = 0; i < STM_NUM_TIMERS; i++) {
+/*    for (i = 0; i < STM_NUM_TIMERS; i++) {
         object_initialize_child(obj, "timer[*]", &s->timer[i],
                                 TYPE_STM32F2XX_TIMER);
     }
@@ -80,10 +81,10 @@ static void stm32f052_soc_initfn(Object *obj)
 static void stm32f052_soc_realize(DeviceState *dev_soc, Error **errp)
 {
     STM32F052State *s = STM32F052_SOC(dev_soc);
-    DeviceState *armv7m; 
-//   DeviceState *dev, *armv7m;
-//    SysBusDevice *busdev;
-//    int i;
+//   DeviceState *armv7m; 
+   DeviceState *dev, *armv7m;
+    SysBusDevice *busdev;
+    int i;
 
     MemoryRegion *system_memory = get_system_memory();
     MemoryRegion *sram = g_new(MemoryRegion, 1);
@@ -122,7 +123,7 @@ static void stm32f052_soc_realize(DeviceState *dev_soc, Error **errp)
     sysbus_connect_irq(busdev, 0, qdev_get_gpio_in(armv7m, 31));
 */
     /* Attach UART (uses USART registers) and USART controllers */
- /*   for (i = 0; i < STM_NUM_USARTS; i++) {
+    for (i = 0; i < STM_NUM_USARTS; i++) {
         dev = DEVICE(&(s->usart[i]));
         qdev_prop_set_chr(dev, "chardev", serial_hd(i));
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->usart[i]), errp)) {
@@ -132,7 +133,7 @@ static void stm32f052_soc_realize(DeviceState *dev_soc, Error **errp)
         sysbus_mmio_map(busdev, 0, usart_addr[i]);
         sysbus_connect_irq(busdev, 0, qdev_get_gpio_in(armv7m, usart_irq[i]));
     }
-*/
+
     /* Timer 2 to 5 */
 /*    for (i = 0; i < STM_NUM_TIMERS; i++) {
         dev = DEVICE(&(s->timer[i]));
@@ -178,13 +179,13 @@ static void stm32f052_soc_realize(DeviceState *dev_soc, Error **errp)
 
     create_unimplemented_device("SYSCFG COMP",	0x40010000 , 0x400);
     create_unimplemented_device("EXTI",		0x40010400 , 0x400);
-    create_unimplemented_device("USART[6]",	0x40011400 , 0x400);
-    create_unimplemented_device("USART[7]",	0x40011800 , 0x400);
-    create_unimplemented_device("USART[8]",	0x40011C00 , 0x400);
+//    create_unimplemented_device("USART[6]",	0x40011400 , 0x400);
+//    create_unimplemented_device("USART[7]",	0x40011800 , 0x400);
+//    create_unimplemented_device("USART[8]",	0x40011C00 , 0x400);
     create_unimplemented_device("ADC",		0x40012400 , 0x400);
     create_unimplemented_device("TIM1",		0x40012C00 , 0x400);
     create_unimplemented_device("SPI/I2S1",	0x40013000 , 0x400);
-    create_unimplemented_device("USART[1]",	0x40013800 , 0x400);
+//    create_unimplemented_device("USART[1]",	0x40013800 , 0x400);
     create_unimplemented_device("TIM15",	0x40014000 , 0x400);
     create_unimplemented_device("TIM16",	0x40014400 , 0x400);
     create_unimplemented_device("TIM17",	0x40014800 , 0x400);

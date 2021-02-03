@@ -27,7 +27,7 @@
 
 //#include "hw/misc/stm32f2xx_syscfg.h"
 //#include "hw/timer/stm32f2xx_timer.h"
-//#include "hw/char/stm32f2xx_usart.h"
+#include "hw/char/stm32f0xx_usart.h"
 //#include "hw/adc/stm32f2xx_adc.h"
 #include "hw/or-irq.h"
 //#include "hw/ssi/stm32f2xx_spi.h"
@@ -37,7 +37,7 @@
 #define STM32F052_SOC(obj) \
     OBJECT_CHECK(STM32F052State, (obj), TYPE_STM32F052_SOC)
 
-//#define STM_NUM_USARTS 6
+#define STM_NUM_USARTS 8
 //#define STM_NUM_TIMERS 4
 //#define STM_NUM_ADCS 3
 //#define STM_NUM_SPIS 3
@@ -57,7 +57,7 @@ typedef struct STM32F052State {
     ARMv7MState armv7m;
 
 //   STM32F2XXSyscfgState syscfg;
-//    STM32F2XXUsartState usart[STM_NUM_USARTS];
+    STM32F0XXUsartState usart[STM_NUM_USARTS];
 //    STM32F2XXTimerState timer[STM_NUM_TIMERS];
 //    STM32F2XXADCState adc[STM_NUM_ADCS];
 //    STM32F2XXSPIState spi[STM_NUM_SPIS];
