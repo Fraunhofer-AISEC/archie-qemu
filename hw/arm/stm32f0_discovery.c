@@ -58,7 +58,7 @@ static void stm32f0discovery_machine_init(MachineClass *mc)
 {
     mc->desc = "Stm32f0 Discovery board (stm32f051R8)";
     mc->init = stm32f0discovery_init;
-    mc->ignore_memory_transaction_failures = true;
+    mc->ignore_memory_transaction_failures = false;
 }
 
 DEFINE_MACHINE("stm32f0discovery", stm32f0discovery_machine_init)
