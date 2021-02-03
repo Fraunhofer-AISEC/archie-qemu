@@ -47,10 +47,22 @@ registerdump.o: registerdump.c
 singlestep.o: singlestep.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+fault_list.o: fault_list.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+fault_injection.o: fault_injection.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+tb_info_data_collection.o: tb_info_data_collection.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+tb_exec_data_collection.o: tb_exec_data_collection.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-lib%.so: %.o lib/avl.o faultdata.o registerdump.o singlestep.o
+lib%.so: %.o lib/avl.o faultdata.o registerdump.o singlestep.o fault_list.o fault_injection.o tb_info_data_collection.o tb_exec_data_collection.o
 	$(CC) -shared -Wl,-soname,$@ -o $@ $^ $(LDLIBS)
 
 clean:

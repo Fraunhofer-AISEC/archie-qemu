@@ -1,4 +1,5 @@
-
+#ifndef SINGLESTEP
+#define SINGLESTEP
 
 /**
  * init_singlestep_req
@@ -27,3 +28,4 @@ void add_singlestep_req();
  * decrease counter for request singlestep. This function should be called, if singlestep should be disabled or is no longer needed. 
  */
 void rem_singlestep_req();
+#endif
