@@ -172,7 +172,7 @@ GString* decode_assembler(struct qemu_plugin_tb *tb)
 	for(int i = 0; i < tb->n; i++)
 	{
 		struct qemu_plugin_insn * insn = qemu_plugin_tb_get_insn(tb, i);
-		g_string_append_printf(out, "[%8lx]: %s !!", insn->vaddr, qemu_plugin_insn_disas(insn));
+		g_string_append_printf(out, "[ %8lx ]: %s !!", insn->vaddr, qemu_plugin_insn_disas(insn));
 	}
 	return out;
 }
