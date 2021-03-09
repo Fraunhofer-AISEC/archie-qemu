@@ -570,6 +570,13 @@ void evaluate_trigger(struct qemu_plugin_tb *tb,int trigger_address_number)
 
 	/*Get fault description*/
 	fault_list_t *current = get_fault_struct_by_trigger((uint64_t) *(fault_trigger_addresses + trigger_address_number), trigger_address_number);
+	if(current == NULL)
+	{
+		//This case only happens, if fault_trigger_address does not match with fault address in struct after it was invalidated.
+		//We throw warning for debugging, however continue to run.
+		qemu_plugin_outs("[TB] [WARNING]: We did not find a fault.\n");
+		return;
+	}
 	/* Trigger tb met, now registering callback for exec to see, if we need to inject fault*/
 	for(int i = 0; i < tb->n; i++)
 	{
@@ -803,7 +810,7 @@ void handle_tb_translate_event(struct qemu_plugin_tb *tb)
 	/**Verify, that no trigger is called*/
 	for( int i = 0; i < fault_number; i++)
 	{
-		if((tb->vaddr <= *(fault_trigger_addresses + i))&&((tb->vaddr + tb_size) >= *(fault_trigger_addresses+i)))
+		if((tb->vaddr <= *(fault_trigger_addresses + i))&&((tb->vaddr + tb_size) >= *(fault_trigger_addresses + i)))
 		{
 			g_autoptr(GString) out = g_string_new("");
 			g_string_printf(out, "Met trigger address: %lx\n", *(fault_trigger_addresses + i) );
