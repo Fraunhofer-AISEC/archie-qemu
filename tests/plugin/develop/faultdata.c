@@ -163,11 +163,11 @@ int readout_memorydump_dump(uint64_t memorydump_position, uint64_t dump_pos)
 		{
 			if(i % 8 == 0)
 			{
-				g_string_printf(out, "$$ B: 0x%02hhx", *(dump + i + i % 8));
+				g_string_printf(out, "$$ B: 0x%02hhx", *(dump + i));
 			}
 			else
 			{
-				g_string_printf(out, " 0x%02hhx", *(dump + i + i % 8));
+				g_string_printf(out, " 0x%02hhx", *(dump + i));
 			}
 			if((i % 8 == 7) || (i == current->len - 1))
 			{
