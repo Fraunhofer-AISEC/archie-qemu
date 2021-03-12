@@ -99,8 +99,8 @@ void inject_register_fault(fault_list_t * current)
 	uint32_t mask = 0;
 	for(int i = 0; i < 4; i++)
 	{
-		current->fault.restoremask[i] = (reg >> 8*i) & current->fault.mask[i];
-		mask += (current->fault.mask[i] << 8*i);
+		current->fault.restoremask[i] = (reg >> 8*i) & current->fault.mask[15 - i];
+		mask += (current->fault.mask[15 - i] << 8*i);
 	}
 	g_string_printf(out," Changing registert %li from %08x", current->fault.address, reg);
 	switch(current->fault.model)
@@ -115,9 +115,11 @@ void inject_register_fault(fault_list_t * current)
 			reg = reg ^ mask;
 			break;
 		default:
+			g_string_append_printf(out, "Fault model is wrong %li", current->fault.model);
 			break;
 	}
-	g_string_append_printf(out, " to %08x\n", reg);
+	write_arm_reg(current->fault.address, reg);
+	g_string_append_printf(out, " to %08x, with mask %08x\n", reg, mask);
 	qemu_plugin_outs(out->str);
 }
 
@@ -129,9 +131,10 @@ void reverse_register_fault(fault_list_t * current)
 	g_string_printf(out, " Change register %li back from %08x", current->fault.address, reg);
 	for(int i = 0; i < 4; i++)
 	{
-		reg = reg & ~((uint32_t)current->fault.mask[i] << 8*i); // clear manipulated bits
+		reg = reg & ~((uint32_t)current->fault.mask[15-i] << 8*i); // clear manipulated bits
 		reg = reg | ((uint32_t) current->fault.restoremask[i] << 8*i); // restore manipulated bits
 	}
+	write_arm_reg(current->fault.address, reg);
 	g_string_printf(out, " to %08x\n", reg);
 	qemu_plugin_outs(out->str);
 }
