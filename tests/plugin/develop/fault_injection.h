@@ -25,14 +25,12 @@ void reverse_fault(fault_list_t * current);
 /**
  * inject_register_fault
  *
- * Inject fault into registers. Reads the current string and determens the register attacked, loads it and performes the fault required
+ * Inject fault into registers. Reads the current string and determines the register attacked, loads it and performs the fault required
  */
 void inject_register_fault(fault_list_t * current);
 
 /**
  * reverse_register_fault
- *
- * Reverse injected faults
  */
 void reverse_register_fault(fault_list_t * current);
 
@@ -40,8 +38,8 @@ void reverse_register_fault(fault_list_t * current);
  * inject_memory_fault
  *
  * injects fault into memory regions
- * Reads current struct to determen the location, model, and mask of fault.
- * Then performes the fault injection
+ * Reads current struct to determine the location, model, and mask of fault.
+ * Then performs the fault injection
  *
  * current: Struct address containing the fault information
  */
@@ -50,9 +48,9 @@ void inject_memory_fault(fault_list_t * current);
 /**
  * process_set1_memory
  *
- * Read memory, then apply set1 according to mask, then write memory back
+ * Read memory, then set bits according to mask, then write memory back
  * 
- * address: baseaddress of lowest byte
+ * address: base address of lowest byte
  * mask: mask containing which bits need to be flipped to 1
  */
 void process_set1_memory(uint64_t address, uint8_t  mask[], uint8_t restoremask[]);
@@ -60,19 +58,19 @@ void process_set1_memory(uint64_t address, uint8_t  mask[], uint8_t restoremask[
 /**
  * process_reverse_fault
  *
- * Read memory, then apply inverse set0 according to mask, then write memory back
+ * Read memory, then apply restore mask according to fault mask, then write memory back
  *
- * address: baseaddress of fault
- * maks: location mask of bits set to 0 for reverse
+ * address: base address of fault
+ * mask: location mask of bits set to 0 for reverse
  */
 void process_reverse_fault(uint64_t address, uint8_t mask[], uint8_t restoremask[]);
 
 /**
  * process_set0_memory
  *
- * Read memory, then apply set0 according to mask, then write memory back
+ * Read memory, then clear bits according to mask, then write memory back
  *
- * address: baseaddress of fault
+ * address: base address of fault
  * mask: location mask of bits set to 0 
  */
 void process_set0_memory(uint64_t address, uint8_t  mask[], uint8_t restoremask[]);
@@ -80,9 +78,9 @@ void process_set0_memory(uint64_t address, uint8_t  mask[], uint8_t restoremask[
 /**
  * process_toggle_memory
  *
- * Read memory, then toggle bits to mask, then write memory back
+ * Read memory, then toggle bits according to mask, then write memory back
  *
- * address: baseaddress of fault
+ * address: base address of fault
  * mask: location mask of bits to be toggled
  */
 void process_toggle_memory(uint64_t address, uint8_t  mask[], uint8_t restoremask[]);
