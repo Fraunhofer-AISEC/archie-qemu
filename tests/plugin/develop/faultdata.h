@@ -22,15 +22,14 @@ void init_memory_module(void);
 /**
  * memory_module_configured()
  *
- * returns 1 if confiugred otherwise 0
+ * returns 1 if configured otherwise 0
  */
 int memory_module_configured(void);
 
 /**
  * init_memory
  * 
- * Initialise the global pointer with the number_of_regions ammount of structs.
- * Please not it is a double ref point, so a pointer to an array
+ * Initialise the global pointer with the number_of_regions amount of structs.
  *
  * @param number_of_regions: Number of structs to initialise
  */
@@ -39,7 +38,7 @@ int init_memory(int number_of_regions);
 /**
  * delete_memory_dump
  *
- * Free the complete internal data structure. After this all data is freed
+ * Free the complete internal data structure. After this all data is no longer accessible
  */
 void delete_memory_dump(void);
 
@@ -66,7 +65,7 @@ int read_all_memory(void);
  *
  * Read one client memory region defined by user 
  *
- * @param memorydump_position: select wich region should be read in vector element position
+ * @param memorydump_position: select which region should be read in vector element position
  */
 int read_memoryregion(uint64_t memorydump_position);
 
@@ -75,8 +74,8 @@ int read_memoryregion(uint64_t memorydump_position);
  *
  * generate the string for data pipe for one memory region dump taken. It then writes each line directly to data pipe.
  *
- * @param memorydump_position: select wich region should be read in vector element
- * @param dump_pos: select wich data dump should be written to pipe. Multiple can be taken during the execution of the config.
+ * @param memorydump_position: select which region should be read in vector element
+ * @param dump_pos: select which data dump should be written to pipe. Multiple can be taken during the execution of the config.
  */
 int readout_memorydump_dump(uint64_t memorydump_position, uint64_t dump_pos);
 
@@ -92,7 +91,7 @@ int readout_memorydump(uint64_t memorydump_position);
 /**
  * readout_all_memorydump
  *
- * First send modechange to memorydump. Then write all memorydumps defined to data pipe.
+ * This function will send all memorydumps through the data pipe 
  */
 int readout_all_memorydump(void);
 

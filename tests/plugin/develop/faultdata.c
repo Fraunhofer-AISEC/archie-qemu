@@ -30,7 +30,7 @@ int memory_module_configured(void)
 	}
 	return 1;
 }
-//initialise vectore with empty elements
+//initialise vector with empty elements
 int init_memory(int number_of_regions)
 {
 	num_memdump = number_of_regions;
@@ -92,7 +92,7 @@ void delete_memory_dump(void)
 	}
 	memdump = NULL;
 }
-//fill in one vector elemente
+//fill in one vector element
 int insert_memorydump_config(uint64_t baseaddress, uint64_t len)
 {	
 	g_autoptr(GString) out = g_string_new("");
@@ -155,7 +155,6 @@ int readout_memorydump_dump(uint64_t memorydump_position, uint64_t dump_pos)
 	{
 		if(i + 8 < current->len)
 		{
-		//	g_string_printf(out, "$$ 0x%08lx: 0x%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx\n", current->address + i, *(dump + i + 7), *(dump + i + 6), *(dump + i + 5), *(dump + i + 4), *(dump + i + 3), *(dump + i + 2), *(dump + i + 1), *(dump + i + 0));		
 			g_string_printf(out, "$$ B: 0x%02hhx 0x%02hhx 0x%02hhx 0x%02hhx 0x%02hhx 0x%02hhx 0x%02hhx 0x%02hhx\n", *(dump + i + 0), *(dump + i + 1), *(dump + i + 2), *(dump + i + 3), *(dump + i + 4), *(dump + i + 5), *(dump + i + 6), *(dump + i + 7));
 			i = i+8;
 		}
@@ -175,7 +174,6 @@ int readout_memorydump_dump(uint64_t memorydump_position, uint64_t dump_pos)
 			}
 			i++;
 		}
-		//qemu_plugin_outs(out->str);
 		plugin_write_to_data_pipe(out->str, out->len);
 
 	}
@@ -186,7 +184,6 @@ int readout_memorydump(uint64_t memorydump_position)
 	g_autoptr(GString) out = g_string_new("");
 	memorydump_t *current = *(memdump + memorydump_position);
 	g_string_printf(out, "$$[memorydump]: %li | %li | %li \n",current->address, current->len, current->used_dumps);
-	//plugin_write_to_data_pipe(out->str, out->len);
 	for(int i = 0; i < current->used_dumps; i++)
 	{
 		g_string_append_printf(out, "$$[Dump start]\n");
