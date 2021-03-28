@@ -23,7 +23,7 @@ void init_fault_list()
  * fault_type: type of fault. see enum on implemented targets
  * fault_model: model of fault. see enum on implemented fault models
  * fault_lifetime: How long should the fault reside. 0 means indefinitely
- * fault_mask: bitmask on which bits should be targeted.
+ * fault_mask: bit mask on which bits should be targeted.
  * fault_trigger_address: Address of trigger location. Fault will be injected if this location is reached
  * fault_trigger_hitcounter: set how many times the location needs to be reached before the fault is injected
  * 
@@ -81,7 +81,7 @@ void delete_fault_queue()
 /**
  * return first
  *
- * This function exists to seperate fault list management from the rest of the code base
+ * This function exists to separate fault list management from the rest of the code base
  */
 fault_list_t* return_first_fault()
 {
@@ -113,7 +113,7 @@ uint64_t get_fault_trigger_address(fault_list_t * current)
 /**
  * set_fault_trigger_num
  *
- * Function sets the trigger num field. This is done to sepperate between two triggers with the same address
+ * Function sets the trigger number field. This is done to separate between two triggers with the same address
  */
 void set_fault_trigger_num(fault_list_t * current, uint64_t trignum)
 {
