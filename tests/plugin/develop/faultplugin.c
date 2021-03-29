@@ -78,7 +78,7 @@ int tb_exec_order_enabled;
 
 
 
-/* datastructures für memory access*/
+/* data structures für memory access*/
 /* avl tree is used for insn address*/
 typedef struct mem_info_t mem_info_t;
 typedef struct mem_info_t
@@ -99,7 +99,7 @@ struct avl_table *mem_avl_root;
 /**
  * mem_info_free()
  *
- * This function deltes all mem info elemts in the global linkes list mem_info_list.
+ * This function deletes all mem info elements in the global linkes list mem_info_list.
  * Furthermore it deletes the associated avl tree
  */
 void mem_info_free()
@@ -142,14 +142,14 @@ int mem_comparison_func(const void *tbl_a, const void *tbl_b, void *tbl_param)
 	return mem_a->ins_address - mem_b->ins_address;
 }
 
-/*Other potential usefull functions needed for gnuavl*/
+/*Other potential useful functions needed for gnuavl*/
 //void tbl_item_func(void *tbl_item, void *tbl_param)
 //void * tbl_copy_func(void *tbl_item, void *tbl_param);
 //void tbl_destry_funv(void *tbl_itme, void *tbl_param);
 
 
 /*QEMU plugin Version control. This is needed to specify for which qemu api version this plugin was build.
- * Qemu woll block, if version is to old to handle incampatibility inside the api
+ * Qemu will block, if version is to old to handle incompatibility inside the api
  */
 QEMU_PLUGIN_EXPORT int qemu_plugin_version = QEMU_PLUGIN_VERSION;
 
@@ -157,14 +157,14 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_version = QEMU_PLUGIN_VERSION;
 /**
  * memaccess_data_cb
  *
- * This is the calback, that is called for memaccess by the target cpu.
+ * This is the callback, that is called for memaccess by the target cpu.
  * It will search the avl tree, if this memory access is already inside the avl tree. If not it creates the element
  * and inserts it into the tree. then it increments the counter
  *
  * vcpu_index: Index of vcpu that made memory access
  * info: API object needed to query for additional information inside the api
  * vddr: Address in Memory of the memory operation
- * userdata: Data provided by user. In this case it is the address of the instruction, that triggerd the memory operation
+ * userdata: Data provided by user. In this case it is the address of the instruction, that triggered the memory operation
  */
 static void memaccess_data_cb(unsigned int vcpu_index, qemu_plugin_meminfo_t info, uint64_t vddr, void *userdata)
 {
@@ -193,14 +193,14 @@ static void memaccess_data_cb(unsigned int vcpu_index, qemu_plugin_meminfo_t inf
  * parse_args
  *
  * Read in command line parameters. These are the Control, config and Data pipe paths.
- * They will be opend here. Commands are send over the Control pipe.
+ * They will be opened here. Commands are send over the Control pipe.
  * Configuration for faults is send over the config pipe
  * Data is send from this module to the outside over the data pipe
  *
  * argv: contains the different path strings
  * argc: number of strings
  *
- * return: Return -1 if somthing went wrong
+ * return: Return -1 if something went wrong
  *
  * */
 
@@ -209,7 +209,7 @@ int parse_args(int argc, char **argv, GString *out)
 	g_string_append_printf(out, "[Info]: Starting argparsing\n");
 	if(argc != 3)
 	{
-		g_string_append_printf(out, "[ERROR]: Not the right ammount of arguments! %i\n", argc);
+		g_string_append_printf(out, "[ERROR]: Not the right amount of arguments! %i\n", argc);
 		return -1;
 	}
 	g_string_append_printf(out, "[Info]: Start readout of control fifo %s\n", *(argv+0));
@@ -290,7 +290,7 @@ int qemu_setup_config()
 	uint8_t buf[16];
 	uint64_t target_len = 8;
 	uint64_t tmp = 0xffffffffffffffff;
-	g_string_printf(out, "[Info]: Start redout of FIFO\n");
+	g_string_printf(out, "[Info]: Start readout of FIFO\n");
 	for(int i = 0; i < 7; i++)
 	{
 		g_string_append_printf(out, "[Info]: Parameter %i\n", i);
@@ -303,7 +303,7 @@ int qemu_setup_config()
 			g_string_append_printf(out, "[DEBUG]: readout %li, target_len %li \n", readout, target_len);
 			if(readout == -1)
 			{
-				g_string_append_printf(out, "[DEBUG]: Value is negativ, Somthing happend in read: %s\n", strerror(errno));
+				g_string_append_printf(out, "[DEBUG]: Value is negativ, Something happened in read: %s\n", strerror(errno));
 				g_string_append_printf(out, "[DEBUG]: File descriptor is : %i\n", pipes->config);
 				//qemu_plugin_outs(out->str);
 				//g_string_printf(out, "  \n");
@@ -339,7 +339,6 @@ int qemu_setup_config()
 				g_string_append_printf(out, "[Info]: fault address: 0x%lx\n", fault_lifetime);
 				break;
 			case 4:
-				//fault_mask = buf[15] << 15*8 | buf[14] << 14*8 | buf[13] << 13*8 | buf[12] << 12*8 | buf[11] << 11*8 | buf[10] << 10*8 | buf[9] << 9*8 | buf[8] << 8*8 | buf[7] << 7*8 | buf[6] << 6*8 | buf[5] << 5*8 | buf[4] << 4*8 |buf[3] << 3*8 | buf[2] << 2*8 | buf[1] << 1*8 | buf[0] << 0*8;
 				g_string_append(out, "[Info]: fault mask: ");
 				for(int j = 0; j < 16; j++)
 				{
@@ -447,7 +446,7 @@ int register_live_faults_callback(fault_list_t *fault)
 	if(live_faults_number == fault_number )
 	{	
 		g_autoptr(GString) out = g_string_new("");
-		g_string_printf(out, "[ERROR]: Reached max exec callbacks. Something went totaly wrong!\n[ERROR]: live_callback %i\n[ERROR]: fault_number %i", live_faults_number, fault_number);
+		g_string_printf(out, "[ERROR]: Reached max exec callbacks. Something went totally wrong!\n[ERROR]: live_callback %i\n[ERROR]: fault_number %i", live_faults_number, fault_number);
 		qemu_plugin_outs(out->str);
 		return -1;
 	}
@@ -487,7 +486,7 @@ void handle_first_tb_fault_insertion()
 		}
 		if(current->fault.trigger.hitcounter == 1)
 		{
-			//we need to force singlestep mode for precission reasons
+			//we need to force singlestep mode for precision reasons
 			add_singlestep_req();
 		}
 		current = return_next( current);
@@ -563,7 +562,7 @@ void tb_exec_cb(unsigned int vcpu_index, void *userdata)
  *  This function takes the trigger address number and evaluates the trigger condition
  *  
  *  tb: Struct containing information about the translation block
- *  trigger_address_num: the location in the trigger vector. is used to find the current fault
+ *  trigger_address_num: the location in the trigger vector. Is used to find the current fault
  */
 void evaluate_trigger(struct qemu_plugin_tb *tb,int trigger_address_number)
 {
@@ -593,11 +592,11 @@ void evaluate_trigger(struct qemu_plugin_tb *tb,int trigger_address_number)
 	print_assembler(tb);
 }
 
-// Calback for instructin exec TODO: remove?
+// Callback for instruction exec TODO: remove?
 void insn_exec_cb(unsigned int vcpu_index, void *userdata)
 {
 	g_autoptr(GString) out = g_string_new("");
-	g_string_append(out, "Next instruciont\n");
+	g_string_append(out, "Next instruction\n");
 	g_string_append_printf(out, " reg[0]: %08x\n", read_arm_reg(0));
 
 	qemu_plugin_outs(out->str);
@@ -660,7 +659,7 @@ int plugin_write_to_data_pipe(char *str, size_t len)
 		if(ret == -1)
 		{
 			g_string_printf(out, "[DEBUG]: output string was: %s\n", str);
-			g_string_append_printf(out, "[DEBUG]: Value is negativ, Somthing happend in write: %s\n", strerror(errno));
+			g_string_append_printf(out, "[DEBUG]: Value is negativ, Something happened in write: %s\n", strerror(errno));
 			g_string_append_printf(out, "[DEBUG]: File descriptor is : %i\n", pipes->data);
 			qemu_plugin_outs(out->str);
 			return -1;
@@ -717,7 +716,7 @@ void plugin_end_information_dump()
 	}
 	if(memory_module_configured())
 	{
-		qemu_plugin_outs("[DEBUG]: Read memory regions confiugred\n");
+		qemu_plugin_outs("[DEBUG]: Read memory regions configured\n");
 		read_all_memory();
 	}
 	qemu_plugin_outs("[DEBUG]: Read registers\n");
@@ -745,14 +744,9 @@ void plugin_end_information_dump()
 	delete_memory_dump();
 	qemu_plugin_outs("[DEBUG]: This is the End\n");
 	plugin_write_to_data_pipe("$$$[END]\n", 9);
-	//Insert deliberate error to cancle exec
-	//TODO Build good exit to qemu
-	//while(1);
+	//Stop Qemu executing
 	exit(0);
 	*error = 0;
-	//mem_info_free();
-	//Now we will start to dump information
-	//
 }
 
 
@@ -806,7 +800,6 @@ void handle_tb_translate_event(struct qemu_plugin_tb *tb)
 {
 	size_t tb_size = calculate_bytesize_instructions(tb);
 	qemu_plugin_outs("Reached tb handle function\n");
-	//qemu_plugin_register_vcpu_tb_exec_cb(tb, tb_exec_cb, QEMU_PLUGIN_CB_RW_REGS, NULL);
 	/**Verify, that no trigger is called*/
 	for( int i = 0; i < fault_number; i++)
 	{
@@ -821,7 +814,6 @@ void handle_tb_translate_event(struct qemu_plugin_tb *tb)
 	/* Verify, if exec callback is requested */
 	for(int i = 0; i < live_faults_number; i++)
 	{
-		//qemu_plugin_outs("[Lifetime] Check livetime\n");
 		if(*(live_faults + i) != NULL)
 		{
 			g_autoptr(GString) out = g_string_new("");
@@ -885,15 +877,12 @@ static void vcpu_translateblock_translation_event(qemu_plugin_id_t id, struct qe
 	g_autoptr(GString) out = g_string_new("");
 	g_string_printf(out, "\n");
 
-	//g_string_append_printf(out, "[TB] Virt1 value: %8lx\n", tb->vaddr);
-
 	qemu_plugin_outs(out->str);
 	g_string_printf(out, " ");
 	if(start_point.trignum != 3)
 	{
 		if(first_tb != 0)
 		{
-			//g_string_append_printf(out, "[TB] Reached normal tb\n\n");
 			qemu_plugin_outs(out->str);
 			g_string_printf(out, " ");
 			handle_tb_translate_event( tb);
@@ -957,8 +946,6 @@ void readout_controll_pipe(GString *out)
 			g_string_append_c(out, c);
 		}
 	}
-	//qemu_plugin_outs(out->str);
-
 }
 
 int readout_controll_mode(GString *conf)
@@ -1118,12 +1105,12 @@ int readout_controll_qemu()
 		}
 
 	}
-	qemu_plugin_outs("[DEBUG]: Finished readout controll. Now start readout of config\n");
+	qemu_plugin_outs("[DEBUG]: Finished readout control. Now start readout of config\n");
 	for(int i = 0; i < fault_number; i++)
 	{
 		if(qemu_setup_config() < 0)
 		{
-			qemu_plugin_outs("[ERROR]: Somthing went wrong in readout of config pipe\n");
+			qemu_plugin_outs("[ERROR]: Something went wrong in readout of config pipe\n");
 			return -1;
 		}
 	}
@@ -1139,9 +1126,9 @@ int initialise_plugin(GString * out, int argc, char **argv)
 	// Number of faults registered in plugin
 	fault_number = 0;
 	// Pointer for array, that is dynamically scaled for the number of faults registered.
-	// It is used to fastly look if a trigger condition might be reached
+	// It is used to quickly look if a trigger condition might be reached
 	fault_trigger_addresses = NULL;
-	// Pointer to array, that is dynamically scaled for the number of faults regigisterd
+	// Pointer to array, that is dynamically scaled for the number of faults registered
 	// It contains the pointer to fault structs, which livetime is not zero
 	// If livetime of fault reaches zero it undoes the fault. If zero it is permanent.
 	live_faults = NULL;
@@ -1150,7 +1137,7 @@ int initialise_plugin(GString * out, int argc, char **argv)
 	mem_info_list = NULL;
 	//
 	live_faults_number = 0;
-	// Used to determen if the tb generating is first executed
+	// Used to determine if the tb generating is first executed
 	first_tb = 0;
 	// counter of executed tbs since start
 	tb_counter = 0;
@@ -1211,11 +1198,11 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 		int argc, char **argv)
 {
 	g_autoptr(GString) out = g_string_new("");
-	g_string_printf(out, "QEMU INjection Plugin\n Current Target is %s\n", info->target_name);
+	g_string_printf(out, "QEMU Injection Plugin\n Current Target is %s\n", info->target_name);
 	g_string_append_printf(out, "Current Version of QEMU Plugin is %i, Min Version is %i\n", info->version.cur, info->version.min);
 	if(strcmp(info->target_name, "arm") < 0)
 	{
-		g_string_append(out, "[ERROR]: Arbort plugin, as this architecture is currently not supported!\n");
+		g_string_append(out, "[ERROR]: Abort plugin, as this architecture is currently not supported!\n");
 		qemu_plugin_outs(out->str);
 		return -1;
 	}
@@ -1273,7 +1260,7 @@ ABORT:
 	tb_info_free();
 	delete_fault_trigger_addresses();
 	delete_fault_queue();
-	g_string_append(out, "[ERROR]: Somthing went wrong. Abborting now!\n");
+	g_string_append(out, "[ERROR]: Something went wrong. Aborting now!\n");
 	qemu_plugin_outs(out->str);
 	return -1;
 }
