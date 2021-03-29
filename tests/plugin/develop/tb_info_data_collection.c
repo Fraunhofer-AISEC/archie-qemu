@@ -53,7 +53,7 @@ void tb_info_free()
 /**
  * tb_comparison_func
  *
- * Needed for avl library. it will determen which element is bigger of type tb_info_t.
+ * Needed for avl library. It will determine which element is bigger of type tb_info_t.
  * see documentation of gnuavl lib for more information
  *
  * tbl_a: Element a to be compared
@@ -61,16 +61,12 @@ void tb_info_free()
  * tbl_param: is not used by this avl tree. But can be used to give additional information
  * to the comparison function
  *
- * return if negativ, a is bigger, if possitiv b is bigger. If 0 it is the same element
+ * return if negativ, a is bigger, if positiv b is bigger. If 0 it is the same element
  */
 int tb_comparison_func(const void *tbl_a, const void *tbl_b, void * tbl_param)
 {
-	//g_autoptr(GString) out = g_string_new("");
 	const tb_info_t * tb_a = tbl_a;
 	const tb_info_t * tb_b = tbl_b;
-	//g_string_printf(out, "[Info]: Compare function called\n");
-	//g_string_append_printf(out, "[Info]: a baseaddress: %p, b baseaddress: %p\n",tbl_a, tbl_b);
-	//qemu_plugin_outs(out->str);
 	if(tb_a->base_address < tb_b->base_address)
 	{
 
@@ -103,19 +99,15 @@ void plugin_dump_tb_information()
 		plugin_write_to_data_pipe(out->str, out->len);
 		item = item->next;
 	}
-
 }
 
 tb_info_t * add_tb_info(struct qemu_plugin_tb *tb)
 {
 	g_autoptr(GString) out = g_string_new("");
 	g_string_printf(out, "\n");
-	//TODO
-	//virt1 ist id der tb
 	tb_info_t tmp;
 	tmp.base_address = tb->vaddr;
 	g_string_append_printf(out, "[TB Info]: Search TB......");
-	//qemu_plugin_outs(out->str);
 	tb_info_t * tb_information = (tb_info_t *) avl_find(tb_avl_root, &tmp); 	
 	if(tb_information == NULL)
 	{
@@ -134,19 +126,18 @@ tb_info_t * add_tb_info(struct qemu_plugin_tb *tb)
 		g_string_append(out, "Not Found\n");
 		if( avl_insert(tb_avl_root, tb_information) != NULL)
 		{
-			qemu_plugin_outs("[ERROR]: Somthing went wrong in avl instert");
+			qemu_plugin_outs("[ERROR]: Something went wrong in avl insert");
 			return NULL;
 		}
 		else
 		{
 			if(avl_find(tb_avl_root, &tmp) != tb_information)
 			{
-				qemu_plugin_outs("[ERROR]: Conntent changed!");
+				qemu_plugin_outs("[ERROR]: Content changed!");
 				return NULL;
 			}
 		}
 		g_string_append(out, "[TB Info]: Done insertion into avl\n");
-		//qemu_plugin_outs(out->str);
 	}
 	else
 	{
@@ -180,17 +171,12 @@ GString* decode_assembler(struct qemu_plugin_tb *tb)
 /*
  * calculate_bytesize_instructions
  *
- * Function to calculate size of TB. It uses the information of the tb and the last insn to determen the bytesize of the instructions inside the translation block
+ * Function to calculate size of TB. It uses the information of the tb and the last insn to determine the byte size of the instructions inside the translation block
  */
 size_t calculate_bytesize_instructions(struct qemu_plugin_tb *tb)
 {
-	//g_autoptr(GString) out = g_string_new("");
-
 	struct qemu_plugin_insn * insn_first = qemu_plugin_tb_get_insn(tb, 0);
 	struct qemu_plugin_insn * insn_last = qemu_plugin_tb_get_insn(tb, tb->n -1);
 	uint64_t size = (insn_last->vaddr - insn_first->vaddr) + insn_last->data->len;
-	//g_string_printf(out, "[CALC]: tb instruction size is %li \n", size);
-
-	//qemu_plugin_outs(out->str);
 	return (size_t) size;
 }

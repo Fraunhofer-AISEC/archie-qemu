@@ -31,7 +31,7 @@ void tb_info_init();
 /**
  * tb_info_avl_init()
  *
- * function intialises avl tree for tb info
+ * function initialises avl tree for tb info
  */
 int tb_info_avl_init();
 
@@ -46,7 +46,7 @@ void tb_info_free();
 /**
  * tb_comparison_func
  *
- * Needed for avl library. it will determen which element is bigger of type tb_info_t.
+ * Needed for avl library. it will determine which element is bigger of type tb_info_t.
  * see documentation of gnuavl lib for more information
  *
  * tbl_a: Element a to be compared
@@ -54,7 +54,7 @@ void tb_info_free();
  * tbl_param: is not used by this avl tree. But can be used to give additional information
  * to the comparison function
  *
- * return if negativ, a is bigger, if possitiv b is bigger. If 0 it is the same element
+ * return if negativ, a is bigger, if positiv b is bigger. If 0 it is the same element
  */
 int tb_comparison_func(const void *tbl_a, const void *tbl_b, void * tbl_param);
 
