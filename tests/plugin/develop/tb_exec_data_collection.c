@@ -20,7 +20,7 @@ void tb_exec_order_init()
  * tb_exec_order_free()
  *
  * free linked list of tb_exec_order_t elements. It does not free the tb_info_t inside.
- * These must be freed seperatly with tb_info_free()
+ * These must be freed separately with tb_info_free()
  */
 void tb_exec_order_free()
 {
@@ -96,9 +96,4 @@ void tb_exec_data_event(unsigned int vcpu_index, void *vcurrent)
 	}
 	tb_exec_order_list = last;
 	num_exec_order++;
-	//
-	//DEBUG	
-	//	g_autoptr(GString) out = g_string_new("");
-	//	g_string_printf(out, "[TB_exec]: ID: %x, Execs %i\n", tb_info->base_address, tb_info->num_of_exec);
-	//	qemu_plugin_outs(out->str);
 }

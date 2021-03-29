@@ -20,7 +20,7 @@ void tb_exec_order_init();
  * tb_exec_order_free()
  *
  * free linked list of tb_exec_order_t elements. It does not free the tb_info_t inside.
- * These must be freed seperatly with tb_info_free()
+ * These must be freed separately with tb_info_free()
  */
 void tb_exec_order_free();
 
