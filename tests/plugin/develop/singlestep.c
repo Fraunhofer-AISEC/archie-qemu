@@ -27,7 +27,7 @@ void check_singlestep()
 void add_singlestep_req()
 {
 	g_autoptr(GString) out = g_string_new("");
-	qemu_plugin_outs("[SINGLESTEP]: increase reqest\n");
+	qemu_plugin_outs("[SINGLESTEP]: increase request\n");
 	req_singlestep++;
 	g_string_printf(out, "[SINGLESTEP]: requests %li\n", req_singlestep);
 	qemu_plugin_outs(out->str);
@@ -39,7 +39,7 @@ void rem_singlestep_req()
 	if(req_singlestep != 0)
 	{
 		g_autoptr(GString) out = g_string_new("");
-		qemu_plugin_outs("[SINGLESTEP]: decrease reqest\n");
+		qemu_plugin_outs("[SINGLESTEP]: decrease request\n");
 		req_singlestep--;
 		g_string_printf(out, "[SINGLESTEP]: requests %li\n", req_singlestep);
 		qemu_plugin_outs(out->str);

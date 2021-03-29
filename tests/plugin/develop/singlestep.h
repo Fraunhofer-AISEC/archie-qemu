@@ -11,7 +11,7 @@ void init_singlestep_req();
 /**
  * check_singlestep
  *
- * Check weather singlestepping should be enabled or not. It will disable singlestep if no requestes are open. If requests are open it will force qemu into singlestep.
+ * Check weather singlestepping should be enabled or not. It will disable singlestep if no requests are open. If requests are open it will force qemu into singlestep.
  */
 void check_singlestep();
 

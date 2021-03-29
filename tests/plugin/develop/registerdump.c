@@ -18,7 +18,7 @@ int arch;
  *
  * readout arm registers from qemu.
  *
- * @params current the current reigsterdump_t struct. it fills the regs part
+ * @params current the current reigsterdump_t struct. It fills the regs part
  */
 void readout_arm_registers(registerdump_t * current);
 
@@ -80,7 +80,7 @@ void read_register_module(void)
 		read_arm_registers();
 		return;
 	}
-	qemu_plugin_outs("[ERROR]: [CRITICAL]: Unkown Architecture for register module");
+	qemu_plugin_outs("[ERROR]: [CRITICAL]: Unknown Architecture for register module");
 }
 
 void read_arm_registers(void)
