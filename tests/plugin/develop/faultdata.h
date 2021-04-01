@@ -45,8 +45,8 @@ void delete_memory_dump(void);
 /**
  * insert_memorydump_config
  *
- * Initialise one vector element with the Memory region, that should be read. 
- * Currently we only read at end of execution.
+ * Initialise one vector element with the memory region, that should be read. 
+ * Currently we only read at the end of execution.
  *
  * @param baseaddress: Baseaddress of memory region
  * @param len: length of memory region in bytes
@@ -82,7 +82,7 @@ int readout_memorydump_dump(uint64_t memorydump_position, uint64_t dump_pos);
 /**
  * readout_memorydump
  *
- * Call read_memorydump_dump for all available dumps inside the struct, that all
+ * Call read_memorydump_dump for all available dumps inside the struct. All
  * dumps are printed to data pipe. Also print config for this memorydump to data pipe
  *
  */

@@ -5,7 +5,7 @@
 #include <stdio.h>
 
 tb_info_t *tb_info_list; 
-/*AVL global variables*/
+/* AVL global variables */
 struct avl_table *tb_avl_root;
 
 void tb_info_init()
@@ -17,7 +17,7 @@ void tb_info_init()
 
 int tb_info_avl_init()
 {
-	// AVL tree used in collecting data. This contains the tbs infos of all generated tbs.
+	// AVL tree used in collecting data. This contains the tbs info of all generated tbs.
 	// The id of a tb is its base address
 	tb_avl_root = avl_create( &tb_comparison_func, NULL, NULL);
 	if(tb_avl_root == NULL)
@@ -31,7 +31,7 @@ int tb_info_avl_init()
 /**
  * tb_info_free()
  *
- * function to delete the translation block information
+ * Function to delete the translation block information
  * structs from memory. Also deletes the avl tree
  */
 void tb_info_free()
@@ -53,15 +53,15 @@ void tb_info_free()
 /**
  * tb_comparison_func
  *
- * Needed for avl library. It will determine which element is bigger of type tb_info_t.
- * see documentation of gnuavl lib for more information
+ * Needed for avl library. It will determine which element is larger, of type tb_info_t.
+ * See documentation of gnuavl lib for more information
  *
  * tbl_a: Element a to be compared
  * tbl_b: Element b to be compared
- * tbl_param: is not used by this avl tree. But can be used to give additional information
+ * tbl_param: Is not used by this avl tree. But can be used to give additional information
  * to the comparison function
  *
- * return if negativ, a is bigger, if positiv b is bigger. If 0 it is the same element
+ * return if negative, a is larger. If positive, b is larger. If 0, it is the same element.
  */
 int tb_comparison_func(const void *tbl_a, const void *tbl_b, void * tbl_param)
 {
@@ -79,7 +79,7 @@ int tb_comparison_func(const void *tbl_a, const void *tbl_b, void * tbl_param)
 /**
  * plugin_dump_tb_information()
  *
- * Function that reads the tb information structs and prints each to the data pipe. Furthermore writes the command to python that it knows tb information is provided
+ * Function that reads the tb information structs and prints each one to the data pipe. Furthermore, writes the command to python, such that it knows tb information is provided
  *
  *
  */
@@ -171,7 +171,7 @@ GString* decode_assembler(struct qemu_plugin_tb *tb)
 /*
  * calculate_bytesize_instructions
  *
- * Function to calculate size of TB. It uses the information of the tb and the last insn to determine the byte size of the instructions inside the translation block
+ * Function to calculate size of TB. It uses the information of the TB and the last insn to determine the byte size of the instructions inside the translation block
  */
 size_t calculate_bytesize_instructions(struct qemu_plugin_tb *tb)
 {

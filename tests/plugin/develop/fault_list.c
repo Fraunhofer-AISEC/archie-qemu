@@ -20,12 +20,12 @@ void init_fault_list()
  * This function appends one fault to the linked list. 
  *
  * fault_address: address of fault
- * fault_type: type of fault. see enum on implemented targets
- * fault_model: model of fault. see enum on implemented fault models
- * fault_lifetime: How long should the fault reside. 0 means indefinitely
+ * fault_type: type of fault. See enum on implemented targets
+ * fault_model: model of fault. See enum on implemented fault models
+ * fault_lifetime: How long the fault should reside. 0 means indefinitely
  * fault_mask: bit mask on which bits should be targeted.
  * fault_trigger_address: Address of trigger location. Fault will be injected if this location is reached
- * fault_trigger_hitcounter: set how many times the location needs to be reached before the fault is injected
+ * fault_trigger_hitcounter: Set how many times the location needs to be reached before the fault is injected
  * 
  * return -1 if fault
  */

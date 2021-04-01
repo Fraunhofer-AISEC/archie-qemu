@@ -5,7 +5,7 @@
 #include <qemu/qemu-plugin.h>
 
 /**
- * This enum is the internal value for all Available architectures supported
+ * This enum is the internal value for all available architectures supported
  */
 enum architecture {ARM};
 
@@ -22,7 +22,7 @@ void init_register_module(int architecture);
 /**
  * delete_register_module
  *
- * Clear all internal datastructures to free memory. All Data is lost, if this function is called to early
+ * Clear all internal datastructures to free memory. All data is lost, if this function is called to early
  */
 void delete_register_module(void);
 
@@ -33,7 +33,7 @@ void delete_register_module(void);
  *
  * @param tbcount Value that is saved in the tbcount
  *
- * @return return negative value if something went wrong
+ * @return return negative value, if something went wrong
  */
 int add_new_registerdump(uint64_t tbcount);
 

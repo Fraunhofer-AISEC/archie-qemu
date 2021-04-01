@@ -63,10 +63,10 @@ int 	first_tb;
 int tb_counter;
 int tb_counter_max;
 
-/*Start point struct (Using fault struct)*/
+/* Start point struct (using fault struct) */
 fault_trigger_t start_point;
 
-/*End point struct (suing fault struct)*/
+/* End point struct (using fault struct) */
 fault_trigger_t end_point;
 
 
@@ -78,8 +78,8 @@ int tb_exec_order_enabled;
 
 
 
-/* data structures für memory access*/
-/* avl tree is used for insn address*/
+/* data structures for memory access */
+/* avl tree is used for insn address */
 typedef struct mem_info_t mem_info_t;
 typedef struct mem_info_t
 {
@@ -99,7 +99,7 @@ struct avl_table *mem_avl_root;
 /**
  * mem_info_free()
  *
- * This function deletes all mem info elements in the global linkes list mem_info_list.
+ * This function deletes all mem info elements in the global linked list mem_info_list.
  * Furthermore it deletes the associated avl tree
  */
 void mem_info_free()
@@ -118,14 +118,14 @@ void mem_info_free()
 /**
  * mem_comparison_func()
  *
- * This function compares two elements of mem_info_t. It returns signifies which element is bigger
+ * This function compares two elements of mem_info_t. It returns which element is larger
  * needed by gnuavl lib. Please see the gnuavl lib for more information
  *
  * tbl_a: Element a to be compared
  * tbl_b: Element b to be compared
  * tbl_param: Not used. Can be used to give additional information to comparison function
  *
- * return: if negativ a is bigger, if possitiv b is bigger, if zero a = b
+ * return: if negative, a is larger. If positive, b is larger. If zero, a = b
  */
 int mem_comparison_func(const void *tbl_a, const void *tbl_b, void *tbl_param)
 {
@@ -142,13 +142,13 @@ int mem_comparison_func(const void *tbl_a, const void *tbl_b, void *tbl_param)
 	return mem_a->ins_address - mem_b->ins_address;
 }
 
-/*Other potential useful functions needed for gnuavl*/
-//void tbl_item_func(void *tbl_item, void *tbl_param)
-//void * tbl_copy_func(void *tbl_item, void *tbl_param);
-//void tbl_destry_funv(void *tbl_itme, void *tbl_param);
+/* Other potential useful functions needed for gnuavl */
+// void tbl_item_func(void *tbl_item, void *tbl_param)
+// void * tbl_copy_func(void *tbl_item, void *tbl_param);
+// void tbl_destry_funv(void *tbl_itme, void *tbl_param);
 
 
-/*QEMU plugin Version control. This is needed to specify for which qemu api version this plugin was build.
+/* QEMU plugin version control. This is needed to specify for which qemu api version this plugin was build.
  * Qemu will block, if version is to old to handle incompatibility inside the api
  */
 QEMU_PLUGIN_EXPORT int qemu_plugin_version = QEMU_PLUGIN_VERSION;
@@ -159,12 +159,12 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_version = QEMU_PLUGIN_VERSION;
  *
  * This is the callback, that is called for memaccess by the target cpu.
  * It will search the avl tree, if this memory access is already inside the avl tree. If not it creates the element
- * and inserts it into the tree. then it increments the counter
+ * and inserts it into the tree. Then it increments the counter
  *
  * vcpu_index: Index of vcpu that made memory access
  * info: API object needed to query for additional information inside the api
- * vddr: Address in Memory of the memory operation
- * userdata: Data provided by user. In this case it is the address of the instruction, that triggered the memory operation
+ * vddr: Address in memory of the memory operation
+ * userdata: Data provided by user. In this case it is the address of the instruction that triggered the memory operation
  */
 static void memaccess_data_cb(unsigned int vcpu_index, qemu_plugin_meminfo_t info, uint64_t vddr, void *userdata)
 {
@@ -192,8 +192,8 @@ static void memaccess_data_cb(unsigned int vcpu_index, qemu_plugin_meminfo_t inf
  *
  * parse_args
  *
- * Read in command line parameters. These are the Control, config and Data pipe paths.
- * They will be opened here. Commands are send over the Control pipe.
+ * Read in command line parameters. These are the control, config and data pipe paths.
+ * They will be opened here. Commands are send over the control pipe.
  * Configuration for faults is send over the config pipe
  * Data is send from this module to the outside over the data pipe
  *
@@ -274,7 +274,7 @@ void print_assembler(struct qemu_plugin_tb *tb)
  * qemu_setup_config
  *
  * This function reads the config from the config pipe. It will only read one fault configuration.
- * If multiple fault should be used, call this function multiple times
+ * If multiple faults should be used, call this function multiple times
  */
 
 int qemu_setup_config()
@@ -303,7 +303,7 @@ int qemu_setup_config()
 			g_string_append_printf(out, "[DEBUG]: readout %li, target_len %li \n", readout, target_len);
 			if(readout == -1)
 			{
-				g_string_append_printf(out, "[DEBUG]: Value is negativ, Something happened in read: %s\n", strerror(errno));
+				g_string_append_printf(out, "[DEBUG]: Value is negative. Something happened in read: %s\n", strerror(errno));
 				g_string_append_printf(out, "[DEBUG]: File descriptor is : %i\n", pipes->config);
 				//qemu_plugin_outs(out->str);
 				//g_string_printf(out, "  \n");
@@ -314,7 +314,7 @@ int qemu_setup_config()
 				readout = 0;
 			}
 		}
-		g_string_append_printf(out, "[Info]: done readout of pipe\n");
+		g_string_append_printf(out, "[Info]: readout of pipe done\n");
 		//qemu_plugin_outs(out->str);
 		switch(i)
 		{
@@ -375,10 +375,10 @@ int register_fault_trigger_addresses()
 {
 	g_autoptr(GString) out = g_string_new("");
 	g_string_printf(out, "[Info]: Calculate number of faults .......");
-	/*Select first element of list*/
+	/* Select first element of list */
 	fault_list_t * current = return_first_fault();
 	int i = 0;
-	/*traverse list*/
+	/* Traverse list */
 	while(current != NULL)
 	{
 		i++;
@@ -387,15 +387,15 @@ int register_fault_trigger_addresses()
 	g_string_append_printf(out, "%i\n",i);
 	if(i == 0)
 	{
-		g_string_append(out, "[ERROR]:No fault found!\n");
+		g_string_append(out, "[ERROR]: No fault found!\n");
 		qemu_plugin_outs(out->str);
 		return -1;
 	}
-	/* Reset back to firs element*/
+	/* Reset back to firs element */
 	current = return_first_fault();
 	fault_number = i;
 	g_string_append_printf(out, "[DEBUG]: Fault number %i\n", fault_number);
-	/* Reserve Memory for "Vector"*/
+	/* Reserve Memory for "Vector" */
 	fault_trigger_addresses = malloc(sizeof(fault_trigger_addresses) * fault_number);
 	live_faults = malloc(sizeof(*live_faults) * fault_number);
 	if(fault_trigger_addresses == NULL || live_faults == NULL)
@@ -407,7 +407,7 @@ int register_fault_trigger_addresses()
 	g_string_append(out, "[Info]: Start registering faults\n");
 	for(int j = 0; j < i; j++)
 	{
-		/* Fill Vector with value*/
+		/* Fill Vector with value */
 		*(fault_trigger_addresses + j) = get_fault_trigger_address(current);
 		set_fault_trigger_num(current, j);
 		*(live_faults + j) = NULL;	
@@ -501,7 +501,7 @@ void handle_first_tb_fault_insertion()
  * trigger_insn_cb
  *
  * This function is registered on insn exec of trigger
- * It will determine, if the current fault should be injected or needs to wait. If yes will call the fault injection function 
+ * It will determine, if the current fault should be injected or needs to wait. If yes, will call the fault injection function 
  */
 void trigger_insn_cb(unsigned int vcpu_index, void *vcurrent)
 {
@@ -567,22 +567,22 @@ void tb_exec_cb(unsigned int vcpu_index, void *userdata)
 void evaluate_trigger(struct qemu_plugin_tb *tb,int trigger_address_number)
 {
 
-	/*Get fault description*/
+	/* Get fault description */
 	fault_list_t *current = get_fault_struct_by_trigger((uint64_t) *(fault_trigger_addresses + trigger_address_number), trigger_address_number);
 	if(current == NULL)
 	{
-		//This case only happens, if fault_trigger_address does not match with fault address in struct after it was invalidated.
-		//We throw warning for debugging, however continue to run.
+		// This case only happens, if fault_trigger_address does not match fault address in struct after it was invalidated.
+		// We throw warning for debugging, however continue to run.
 		qemu_plugin_outs("[TB] [WARNING]: We did not find a fault.\n");
 		return;
 	}
-	/* Trigger tb met, now registering callback for exec to see, if we need to inject fault*/
+	/* Trigger tb met, now registering callback for exec to see, if we need to inject fault */
 	for(int i = 0; i < tb->n; i++)
 	{
 		struct qemu_plugin_insn *insn = qemu_plugin_tb_get_insn(tb, i);
 		if((current->fault.trigger.address >= qemu_plugin_insn_vaddr(insn))&&(current->fault.trigger.address < qemu_plugin_insn_vaddr(insn) + qemu_plugin_insn_size(insn)))
 		{
-			/* Trigger address met*/
+			/* Trigger address met */
 			qemu_plugin_outs("[TB] Reached injection of callback\n");
 			qemu_plugin_register_vcpu_insn_exec_cb(insn, trigger_insn_cb, QEMU_PLUGIN_CB_RW_REGS, current);
 			//qemu_plugin_register_vcpu_tb_exec_cb(tb, tb_exec_cb, QEMU_PLUGIN_CB_RW_REGS, current);
@@ -621,14 +621,14 @@ void eval_live_fault_callback(struct qemu_plugin_tb *tb, int live_fault_callback
 	}
 	if(current->fault.lifetime == 0)
 	{
-		//Remove exec callback
+		// Remove exec callback
 		*(live_faults + live_fault_callback_number) = NULL;
 		qemu_plugin_outs("[Live faults WARNING]: Remove live faults callback\n");
 		rem_singlestep_req();
 	}
 	else
 	{
-		/* Register exec callback*/
+		/* Register exec callback */
 		for(int i = 0; i < tb->n; i++)
 		{
 			struct qemu_plugin_insn *insn = qemu_plugin_tb_get_insn(tb, i);
@@ -647,7 +647,7 @@ void eval_live_fault_callback(struct qemu_plugin_tb *tb, int live_fault_callback
  * str: pointer to string to be printed
  * len: length of string to be printed
  * 
- * return negativ if failed
+ * return negative if failed
  */
 int plugin_write_to_data_pipe(char *str, size_t len)
 {
@@ -659,7 +659,7 @@ int plugin_write_to_data_pipe(char *str, size_t len)
 		if(ret == -1)
 		{
 			g_string_printf(out, "[DEBUG]: output string was: %s\n", str);
-			g_string_append_printf(out, "[DEBUG]: Value is negativ, Something happened in write: %s\n", strerror(errno));
+			g_string_append_printf(out, "[DEBUG]: Value is negative. Something happened in write: %s\n", strerror(errno));
 			g_string_append_printf(out, "[DEBUG]: File descriptor is : %i\n", pipes->data);
 			qemu_plugin_outs(out->str);
 			return -1;
@@ -676,7 +676,7 @@ int plugin_write_to_data_pipe(char *str, size_t len)
 /**
  * plugin_dump_mem_information
  *
- * Write collected inforation about the memory accesses to data pipe
+ * Write collected information about the memory accesses to data pipe
  */
 void plugin_dump_mem_information()
 {
@@ -742,7 +742,7 @@ void plugin_end_information_dump()
 	mem_info_free();
 	qemu_plugin_outs("[DEBUG]: Delete memorydump\n");
 	delete_memory_dump();
-	qemu_plugin_outs("[DEBUG]: This is the End\n");
+	qemu_plugin_outs("[DEBUG]: Finished\n");
 	plugin_write_to_data_pipe("$$$[END]\n", 9);
 	//Stop Qemu executing
 	exit(0);
@@ -829,7 +829,7 @@ void handle_tb_translate_event(struct qemu_plugin_tb *tb)
  * handle_tb_translate_data
  *
  * Find the current info struct of translation blocks inside avl tree.
- * If there is no strict in avl, create struct and place it into avl.
+ * If there is no struct in avl, create struct and place it into avl.
  * Also register tb_callback_event to fill in runtime information
  *
  * tb: API struct containing information about the translation block
@@ -846,7 +846,7 @@ void handle_tb_translate_data(struct qemu_plugin_tb *tb)
 	{
 		qemu_plugin_register_vcpu_tb_exec_cb(tb, tb_exec_data_event, QEMU_PLUGIN_CB_RW_REGS, tb_information);
 	}
-	//inject counter
+	// inject counter
 	qemu_plugin_register_vcpu_tb_exec_cb(tb, tb_exec_end_max_event, QEMU_PLUGIN_CB_RW_REGS, (void *) tb->n);
 	if( mem_info_list_enabled == 1)
 	{
@@ -856,7 +856,7 @@ void handle_tb_translate_data(struct qemu_plugin_tb *tb)
 			qemu_plugin_register_vcpu_mem_cb( insn, memaccess_data_cb, QEMU_PLUGIN_CB_RW_REGS, QEMU_PLUGIN_MEM_RW, insn->vaddr);
 		}
 	}
-	//DEBUG
+	// DEBUG
 	GString *assembler = decode_assembler(tb);
 	g_string_append_printf(out, "[TB Info] tb id: %8lx\n[TB Info] tb size: %li\n[TB Info] Assembler:\n%s\n", tb->vaddr, tb->n, assembler->str);
 	g_string_free(assembler, TRUE);
@@ -938,7 +938,7 @@ void readout_controll_pipe(GString *out)
 		ret = read(pipes->control, &c, 1);
 		if(ret != 1)
 		{
-			qemu_plugin_outs("[DEBUG]: Readout config no character found or too much read\n");
+			qemu_plugin_outs("[DEBUG]: Readout config, no character found or too much read\n");
 			c = ' ';
 		}
 		else
@@ -984,40 +984,40 @@ int readout_controll_config(GString *conf)
 {
 	if(strstr(conf->str, "max_duration: "))
 	{
-		//convert number in string to number
+		// convert number in string to number
 		tb_counter_max = strtoimax(strstr(conf->str,"max_duration: ") + 13, NULL, 0 );
 		return 1;
 	}
 	if(strstr(conf->str, "num_faults: "))
 	{
-		//convert number in string to number
+		// convert number in string to number
 		fault_number = strtoimax(strstr(conf->str,"num_faults: ") + 11, NULL, 0 );
 		return 1;
 	}
 	if(strstr(conf->str, "start_address: "))
 	{
-		//convert number in string to number
+		// convert number in string to number
 		start_point.address = strtoimax(strstr(conf->str, "start_address: ") + 14, NULL, 0);
 		start_point.trignum = start_point.trignum | 2;
 		return 1;
 	}
 	if(strstr(conf->str, "start_counter: "))
 	{
-		//convert number in string to number
+		// convert number in string to number
 		start_point.hitcounter = strtoimax(strstr(conf->str, "start_counter: ") + 14, NULL, 0);
 		start_point.trignum = start_point.trignum | 1;
 		return 1;
 	}
 	if(strstr(conf->str, "end_address: "))
 	{
-		//convert number in string to number
+		// convert number in string to number
 		end_point.address = strtoimax(strstr(conf->str, "end_address: ") + 12, NULL, 0);
 		end_point.trignum = end_point.trignum | 2;
 		return 1;
 	}
 	if(strstr(conf->str, "end_counter: "))
 	{
-		//convert number in string to number
+		// convert number in string to number
 		end_point.hitcounter = strtoimax(strstr(conf->str, "end_counter: ") + 12, NULL, 0);
 		end_point.trignum = end_point.trignum | 1;
 		return 1;
@@ -1119,7 +1119,7 @@ int readout_controll_qemu()
 
 int initialise_plugin(GString * out, int argc, char **argv)
 {
-	// Global fifo data structure for control, data and config
+	// Global FIFO data structure for control, data and config
 	pipes = NULL;
 	// Start pointer for linked list of faults
 	init_fault_list();
@@ -1129,8 +1129,8 @@ int initialise_plugin(GString * out, int argc, char **argv)
 	// It is used to quickly look if a trigger condition might be reached
 	fault_trigger_addresses = NULL;
 	// Pointer to array, that is dynamically scaled for the number of faults registered
-	// It contains the pointer to fault structs, which livetime is not zero
-	// If livetime of fault reaches zero it undoes the fault. If zero it is permanent.
+	// It contains the pointer to fault structs whose lifetime is not zero
+	// If lifetime of fault reaches zero, it undoes the fault. If zero, it is permanent.
 	live_faults = NULL;
 	tb_exec_order_init();
 	//
@@ -1143,11 +1143,11 @@ int initialise_plugin(GString * out, int argc, char **argv)
 	tb_counter = 0;
 	// Maximum number of tbs executed after start
 	tb_counter_max = 1000;
-	// Start point initialisation
+	// Start point initialization
 	start_point.address = 0;
 	start_point.hitcounter = 0;
 	start_point.trignum = 0;
-	// End point initialisation
+	// End point initialization
 	end_point.address = 0;
 	end_point.hitcounter = 0;
 	end_point.trignum = 0;
@@ -1155,11 +1155,11 @@ int initialise_plugin(GString * out, int argc, char **argv)
 	// Init tb_info
 	tb_info_init();
 
-	//enable mem info logging
+	// enable mem info logging
 	mem_info_list_enabled = 1;
-	//enable tb info logging
+	// enable tb info logging
 	tb_info_enabled = 1;
-	//enable tb exec logging
+	// enable tb exec logging
 	tb_exec_order_enabled = 1;
 
 	/* Initialisation of pipe struct */
@@ -1208,7 +1208,7 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 	}
 
 
-	// Initialise all global datastructures and open Fifos
+	// Initialise all global datastructures and open FIFOs
 	if(initialise_plugin(out, argc, argv) == -1)
 	{
 		goto ABORT;
@@ -1249,7 +1249,7 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 		goto ABORT;
 	}
 	g_string_append(out, "Done\n");
-	g_string_append_printf(out, "[Start]: Reached end of Initialisation, starting guest now\n");
+	g_string_append_printf(out, "[Start]: Reached end of initialisation, starting guest now\n");
 	qemu_plugin_outs(out->str);
 	return 0;
 ABORT:

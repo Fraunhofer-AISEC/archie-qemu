@@ -16,7 +16,7 @@ int arch;
 /**
  * readout_arm_registers
  *
- * readout arm registers from qemu.
+ * readout arm registers from QEMU.
  *
  * @params current the current reigsterdump_t struct. It fills the regs part
  */
@@ -62,12 +62,12 @@ int add_new_registerdump(uint64_t tbcount)
 
 void readout_arm_registers(registerdump_t * current)
 {
-	//read r0 - r15
+	// read r0 - r15
 	for(int i = 0; i < 16; i++)
 	{
 		current->regs[i] = read_arm_reg(i); 
 	}
-	//read XPSR
+	// read XPSR
 	current->regs[16] = read_arm_reg(25);
 }
 
