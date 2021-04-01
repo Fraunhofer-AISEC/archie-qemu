@@ -414,7 +414,7 @@ void write_arm_reg(int reg, uint32_t val)
 
 void plugin_single_step(int enable)
 {
-	static int orig_value; //preserv original value
+	static int orig_value; //preserve original value
 	static int executed = 0;
 	if(unlikely(executed == 0))
 	{
@@ -426,7 +426,7 @@ void plugin_single_step(int enable)
 	}
 	if(enable == 1)
 	{
-		singlestep = 1; //flag, that globaly forces qemu into singlestep mode. setup in softmmu/vl.c
+		singlestep = 1; // flag, that globally forces qemu into singlestep mode. setup in softmmu/vl.c
 	}
 	else
 	{
@@ -435,7 +435,7 @@ void plugin_single_step(int enable)
 		g_string_printf(out, "[SINGLESTEP_API]: %i\n", singlestep);
 		qemu_log_mask(CPU_LOG_PLUGIN, "%s", out->str);
 	}
-	//Force flush tb cach to bring singlestep into effect
+	// Force flush tb cache to bring singlestep into effect
 	tb_flush(current_cpu);
 }
 
