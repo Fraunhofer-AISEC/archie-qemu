@@ -25,7 +25,7 @@
 /**
  * inject_fault
  *
- * At this point the fault need to be injected. This is the function to select the right model and call injection function
+ * At this point the fault needs to be injected. This is the function to select the right model and call the injection function
  *
  * current: Struct address containing the fault information needed
  */
@@ -43,7 +43,7 @@ void reverse_fault(fault_list_t * current);
 /**
  * inject_register_fault
  *
- * Inject fault into registers. Reads the current string and determines the register attacked, loads it and performs the fault required
+ * Inject fault into registers. Reads the current string and determines the register that is attacked, loads it and performs the fault required
  */
 void inject_register_fault(fault_list_t * current);
 

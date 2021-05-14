@@ -35,7 +35,7 @@ void tb_exec_order_init()
 /**
  * tb_exec_order_free()
  *
- * free linked list of tb_exec_order_t elements. It does not free the tb_info_t inside.
+ * Free linked list of tb_exec_order_t elements. It does not free the tb_info_t inside.
  * These must be freed separately with tb_info_free()
  */
 void tb_exec_order_free()
@@ -53,7 +53,7 @@ void tb_exec_order_free()
 /**
  * plugin_dump_tb_exec_order
  *
- * Print the order of translation blocks executed. Also provide a counter number, that it can be later resorted in python
+ * Print the order of translation blocks executed. Also provide a counter number, such that it can be later resorted in python
  */
 void plugin_dump_tb_exec_order()
 {
@@ -75,7 +75,7 @@ void plugin_dump_tb_exec_order()
 	i++;
 	if(i != num_exec_order)
 	{
-		qemu_plugin_outs("[WARNING]: i und numexec sind nicht gleich !\n");
+		qemu_plugin_outs("[WARNING]: i and numexec differ!\n");
 	}
 	i = 0;
 	while(item != NULL)

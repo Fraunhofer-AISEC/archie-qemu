@@ -25,7 +25,7 @@
 #include <qemu/plugin.h>
 #include <qemu/qemu-plugin.h>
 
-/*Output TB data structures*/
+/* Output TB data structures */
 typedef struct tb_info_t tb_info_t;
 typedef struct tb_info_t
 {
@@ -62,22 +62,22 @@ void tb_info_free();
 /**
  * tb_comparison_func
  *
- * Needed for avl library. it will determine which element is bigger of type tb_info_t.
- * see documentation of gnuavl lib for more information
+ * Needed for avl library. it will determine which element is larger, of type tb_info_t.
+ * See documentation of gnuavl lib for more information
  *
  * tbl_a: Element a to be compared
  * tbl_b: Element b to be compared
- * tbl_param: is not used by this avl tree. But can be used to give additional information
+ * tbl_param: Is not used by this avl tree. But can be used to give additional information
  * to the comparison function
  *
- * return if negativ, a is bigger, if positiv b is bigger. If 0 it is the same element
+ * return if negative, a is larger. If positive, b is larger. If 0, it is the same element.
  */
 int tb_comparison_func(const void *tbl_a, const void *tbl_b, void * tbl_param);
 
 /**
  * plugin_dump_tb_information()
  *
- * Function that reads the tb information structs and prints each to the data pipe. Furthermore writes the command to python that it knows tb information is provided
+ * Function that reads the tb information structs and prints each to the data pipe. Furthermore writes the command to python, such that it knows tb information is provided
  *
  *
  */

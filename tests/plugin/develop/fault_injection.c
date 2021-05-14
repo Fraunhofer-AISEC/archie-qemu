@@ -25,7 +25,7 @@
 /**
  * inject_fault
  *
- * At this point the fault need to be injected. This is the function to select the right model and call injection function
+ * At this point the fault needs to be injected. This is the function to select the right model and call the injection function
  *
  * current: Struct address containing the fault information needed
  */
@@ -101,7 +101,7 @@ void reverse_fault(fault_list_t * current)
 /**
  * inject_register_fault
  *
- * Inject fault into registers. Reads the current string and determines the register attacked, loads it and performs the fault required
+ * Inject fault into registers. Reads the current string and determines the register that is attacked, loads it and performs the fault required
  */
 void inject_register_fault(fault_list_t * current)
 {
@@ -118,7 +118,7 @@ void inject_register_fault(fault_list_t * current)
 		current->fault.restoremask[i] = (reg >> 8*i) & current->fault.mask[15 - i];
 		mask += (current->fault.mask[15 - i] << 8*i);
 	}
-	g_string_printf(out," Changing Registers %li from %08x", current->fault.address, reg);
+	g_string_printf(out," Changing registers %li from %08x", current->fault.address, reg);
 	switch(current->fault.model)
 	{
 		case SET0:
@@ -170,15 +170,15 @@ void inject_memory_fault(fault_list_t * current)
 	switch(current->fault.model)
 	{
 		case SET0:
-			g_string_append_printf(out, "Set 0 fault to Address %lx\n", current->fault.address);
+			g_string_append_printf(out, "Set 0 fault to address %lx\n", current->fault.address);
 			process_set0_memory(current->fault.address, current->fault.mask, current->fault.restoremask);
 			break;
 		case SET1:
-			g_string_append_printf(out, "Set 1 fault to Address %lx\n", current->fault.address);
+			g_string_append_printf(out, "Set 1 fault to address %lx\n", current->fault.address);
 			process_set1_memory(current->fault.address, current->fault.mask, current->fault.restoremask);
 			break;
 		case TOGGLE:
-			g_string_append_printf(out, "Toggle fault to Address %lx\n", current->fault.address);
+			g_string_append_printf(out, "Toggle fault to address %lx\n", current->fault.address);
 			process_toggle_memory(current->fault.address, current->fault.mask, current->fault.restoremask);
 			break;
 		default:
@@ -203,8 +203,8 @@ void process_set1_memory(uint64_t address, uint8_t  mask[], uint8_t restoremask[
 	ret = plugin_rw_memory_cpu( address, value, 16, 0);
 	for(int i = 0; i < 16; i++)
 	{
-		restoremask[i] = value[i] & mask[15 - i]; //generate restore mask
-		value[i] = value[i] | mask[15 - i]; //inject fault
+		restoremask[i] = value[i] & mask[15 - i]; // generate restore mask
+		value[i] = value[i] | mask[15 - i]; // inject fault
 	}
 	ret += plugin_rw_memory_cpu( address, value, 16, 1);
 	if (ret < 0)
@@ -228,7 +228,7 @@ void process_reverse_fault(uint64_t address, uint8_t mask[], uint8_t restoremask
 	ret = plugin_rw_memory_cpu( address, value, 16, 0);
 	for(int i = 0; i < 16; i++)
 	{
-		value[i] = value[i] & ~(mask[15 - i]); //clear value in mask position
+		value[i] = value[i] & ~(mask[15 - i]); // clear value in mask position
 		value[i] = value[i] | restoremask[i]; // insert restore mask to restore positions
 	}
 	ret += plugin_rw_memory_cpu( address, value, 16, 1);
@@ -254,8 +254,8 @@ void process_set0_memory(uint64_t address, uint8_t  mask[], uint8_t restoremask[
 	ret = plugin_rw_memory_cpu( address, value, 16, 0);
 	for(int i = 0; i < 16; i++)
 	{
-		restoremask[i] = value[i] & mask[15 - i]; //generate restore mask
-		value[i] = value[i] & ~(mask[15 - i]); //inject fault
+		restoremask[i] = value[i] & mask[15 - i]; // generate restore mask
+		value[i] = value[i] & ~(mask[15 - i]); // inject fault
 	}
 	ret += plugin_rw_memory_cpu( address, value, 16, 1);
 	if (ret < 0)
@@ -281,8 +281,8 @@ void process_toggle_memory(uint64_t address, uint8_t  mask[], uint8_t restoremas
 	ret = plugin_rw_memory_cpu( address , value, 16, 0);
 	for(int i = 0; i < 16; i++)
 	{
-		restoremask[i] = value[i] & mask[15 - i]; //generate restore mask
-		value[i] = value[i] ^ mask[15 - i]; //inject fault
+		restoremask[i] = value[i] & mask[15 - i]; // generate restore mask
+		value[i] = value[i] ^ mask[15 - i]; // inject fault
 	}
 	ret += plugin_rw_memory_cpu( address, value, 16, 1);
 	if (ret < 0)

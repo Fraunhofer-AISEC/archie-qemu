@@ -49,19 +49,19 @@ int memory_module_configured(void)
 	}
 	return 1;
 }
-//initialise vector with empty elements
+// Initialise vector with empty elements
 int init_memory(int number_of_regions)
 {
 	num_memdump = number_of_regions;
 	used_memdump = 0;
-	//Initialise vector
+	// Initialise vector
 	memdump = NULL;
 	memdump = malloc(sizeof(memorydump_t *) * number_of_regions);
 	if(memdump == NULL)
 	{
 		return -1;
 	}
-	//Clear pointers with NULL
+	// Clear pointers with NULL
 	for(int i = 0; i < number_of_regions; i++)
 	{
 		*(memdump + i) = NULL;
@@ -111,13 +111,13 @@ void delete_memory_dump(void)
 	}
 	memdump = NULL;
 }
-//fill in one vector element
+// Fill in one vector element
 int insert_memorydump_config(uint64_t baseaddress, uint64_t len)
 {	
 	g_autoptr(GString) out = g_string_new("");
 	if(num_memdump == used_memdump)
 	{
-		qemu_plugin_outs("[ERROR]: No Memorydump config free!\n");
+		qemu_plugin_outs("[ERROR]: No memorydump config free!\n");
 		return -1;
 	}
 	memorydump_t *tmp = *(memdump + used_memdump);
