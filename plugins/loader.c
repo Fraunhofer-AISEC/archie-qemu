@@ -406,10 +406,56 @@ uint32_t read_arm_reg(int reg)
 
 }
 
+static int plugin_read_register(CPUState *cpu, GByteArray *buf, int reg)
+{
+	CPUClass *cc = CPU_GET_CLASS(cpu);
+
+	if (reg < cc->gdb_num_core_regs) {
+		return cc->gdb_read_register(cpu, buf, reg);
+	}
+
+	return 0;
+}
+
+uint64_t read_reg(int reg)
+{
+	GByteArray *val = g_byte_array_new();
+	uint8_t byte_reg;
+	uint64_t reg_ret = 0;
+	int ret_bytes = plugin_read_register(current_cpu, val, reg);
+	for(int i = 0; i < ret_bytes; i++)
+	{
+		/* Read out of GbyteArray and build up 32 bit number. Already swapped by request*/
+		byte_reg = val->data[i];
+		reg_ret |= (byte_reg << i*8);
+	}
+	return reg_ret;
+}
+
 void write_arm_reg(int reg, uint32_t val)
 {
 
 	arm_cpu_gdb_write_register(current_cpu, (uint8_t *) &val, reg);
+}
+
+void write_reg(int reg, uint64_t val)
+{
+	//gdb_write_register(current_cpu, (uint8_t *) &val, reg);
+	CPUState *cpu = current_cpu;
+	CPUClass *cc = CPU_GET_CLASS(cpu);
+	//CPUArchState *env = cpu->env_ptr;
+	//GDBRegisterState *r;
+
+	if (reg < cc->gdb_num_core_regs) {
+		cc->gdb_write_register(cpu, (uint8_t *) &val, reg);
+	}
+
+	/*for (r = cpu->gdb_regs; r; r = r->next) {
+		if (r->base_reg <= reg && reg < r->base_reg + r->num_regs) {
+			return r->set_reg(env, mem_buf, reg - r->base_reg);
+		}
+	}*/
+	return;
 }
 
 void plugin_single_step(int enable)
