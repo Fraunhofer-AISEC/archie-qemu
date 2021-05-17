@@ -112,6 +112,10 @@ config STM32F0_DISCOVERY
     bool
     select STM32F052_SOC
 
+config XMC4500_RELAX_LITE
+    bool
+    select XMC4500_SOC
+
 config NSERIES
     bool
     select OMAP
@@ -341,6 +345,10 @@ config STM32F052_SOC
     bool
     select ARM_V7M
     select STM32F0XX_USART
+
+config XMC4500_SOC
+    bool
+    select ARM_V7M
 
 config XLNX_ZYNQMP_ARM
     bool
