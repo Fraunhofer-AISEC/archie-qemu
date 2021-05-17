@@ -611,7 +611,7 @@ void insn_exec_cb(unsigned int vcpu_index, void *userdata)
 {
 	g_autoptr(GString) out = g_string_new("");
 	g_string_append(out, "Next instruction\n");
-	g_string_append_printf(out, " reg[0]: %08x\n", read_arm_reg(0));
+	g_string_append_printf(out, " reg[0]: %08x\n", (uint32_t) read_reg(0));
 
 	qemu_plugin_outs(out->str);
 }

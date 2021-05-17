@@ -83,10 +83,10 @@ void readout_arm_registers(registerdump_t * current)
 	// read r0 - r15
 	for(int i = 0; i < 16; i++)
 	{
-		current->regs[i] = read_arm_reg(i); 
+		current->regs[i] = read_reg(i); 
 	}
 	// read XPSR
-	current->regs[16] = read_arm_reg(25);
+	current->regs[16] = read_reg(25);
 }
 
 
