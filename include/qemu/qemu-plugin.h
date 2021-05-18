@@ -412,22 +412,18 @@ void qemu_plugin_outs(const char *string);
 
 
 /**
- * read_arm_reg() read an arm register
+ * read_reg() read a register
  * @reg: Number of the register
  *
  * Returns the value of the register
  */
-uint32_t read_arm_reg(int reg);
-
 uint64_t read_reg(int reg);
 
 /**
- * write_arm_reg() - write to an arm register
+ * write_reg() - write to a register
  * @reg: number of the register
  * @val: value written to register
  */
-void write_arm_reg(int reg, uint32_t val);
-
 void write_reg(int reg, uint64_t val);
 
 /**
