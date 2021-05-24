@@ -116,8 +116,8 @@ void inject_register_fault(fault_list_t * current)
 	uint64_t mask = 0;
 	for(int i = 0; i < 8; i++)
 	{
-		current->fault.restoremask[i] = (reg >> 8*i) & current->fault.mask[15 - i];
-		mask += (current->fault.mask[15 - i] << 8*i);
+		current->fault.restoremask[i] = (reg >> 8*i) & current->fault.mask[i];
+		mask += (current->fault.mask[i] << 8*i);
 	}
 	g_string_printf(out," Changing registers %li from %08lx", current->fault.address, reg);
 	switch(current->fault.model)
@@ -148,7 +148,7 @@ void reverse_register_fault(fault_list_t * current)
 	g_string_printf(out, " Change register %li back from %08lx", current->fault.address, reg);
 	for(int i = 0; i < 8; i++)
 	{
-		reg = reg & ~((uint64_t)current->fault.mask[15-i] << 8*i); // clear manipulated bits
+		reg = reg & ~((uint64_t)current->fault.mask[i] << 8*i); // clear manipulated bits
 		reg = reg | ((uint64_t) current->fault.restoremask[i] << 8*i); // restore manipulated bits
 	}
 	write_reg(current->fault.address, reg);
@@ -204,8 +204,8 @@ void process_set1_memory(uint64_t address, uint8_t  mask[], uint8_t restoremask[
 	ret = plugin_rw_memory_cpu( address, value, 16, 0);
 	for(int i = 0; i < 16; i++)
 	{
-		restoremask[i] = value[i] & mask[15 - i]; // generate restore mask
-		value[i] = value[i] | mask[15 - i]; // inject fault
+		restoremask[i] = value[i] & mask[i]; // generate restore mask
+		value[i] = value[i] | mask[i]; // inject fault
 	}
 	ret += plugin_rw_memory_cpu( address, value, 16, 1);
 	if (ret < 0)
@@ -229,7 +229,7 @@ void process_reverse_fault(uint64_t address, uint8_t mask[], uint8_t restoremask
 	ret = plugin_rw_memory_cpu( address, value, 16, 0);
 	for(int i = 0; i < 16; i++)
 	{
-		value[i] = value[i] & ~(mask[15 - i]); // clear value in mask position
+		value[i] = value[i] & ~(mask[i]); // clear value in mask position
 		value[i] = value[i] | restoremask[i]; // insert restore mask to restore positions
 	}
 	ret += plugin_rw_memory_cpu( address, value, 16, 1);
@@ -255,8 +255,8 @@ void process_set0_memory(uint64_t address, uint8_t  mask[], uint8_t restoremask[
 	ret = plugin_rw_memory_cpu( address, value, 16, 0);
 	for(int i = 0; i < 16; i++)
 	{
-		restoremask[i] = value[i] & mask[15 - i]; // generate restore mask
-		value[i] = value[i] & ~(mask[15 - i]); // inject fault
+		restoremask[i] = value[i] & mask[i]; // generate restore mask
+		value[i] = value[i] & ~(mask[i]); // inject fault
 	}
 	ret += plugin_rw_memory_cpu( address, value, 16, 1);
 	if (ret < 0)
@@ -282,8 +282,8 @@ void process_toggle_memory(uint64_t address, uint8_t  mask[], uint8_t restoremas
 	ret = plugin_rw_memory_cpu( address , value, 16, 0);
 	for(int i = 0; i < 16; i++)
 	{
-		restoremask[i] = value[i] & mask[15 - i]; // generate restore mask
-		value[i] = value[i] ^ mask[15 - i]; // inject fault
+		restoremask[i] = value[i] & mask[i]; // generate restore mask
+		value[i] = value[i] ^ mask[i]; // inject fault
 	}
 	ret += plugin_rw_memory_cpu( address, value, 16, 1);
 	if (ret < 0)
