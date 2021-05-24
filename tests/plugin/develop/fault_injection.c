@@ -106,19 +106,20 @@ void reverse_fault(fault_list_t * current)
 void inject_register_fault(fault_list_t * current)
 {
 	g_autoptr(GString) out = g_string_new("");
-	if(current->fault.address > 14)
+	//TODO: Remove if not needed
+/*	if(current->fault.address > 14)
 	{
 		qemu_plugin_outs("[ERROR] Register not valid\n");
 		return;
-	}
-	uint32_t reg = read_reg(current->fault.address);
-	uint32_t mask = 0;
-	for(int i = 0; i < 4; i++)
+	}*/
+	uint64_t reg = read_reg(current->fault.address);
+	uint64_t mask = 0;
+	for(int i = 0; i < 8; i++)
 	{
 		current->fault.restoremask[i] = (reg >> 8*i) & current->fault.mask[15 - i];
 		mask += (current->fault.mask[15 - i] << 8*i);
 	}
-	g_string_printf(out," Changing registers %li from %08x", current->fault.address, reg);
+	g_string_printf(out," Changing registers %li from %08lx", current->fault.address, reg);
 	switch(current->fault.model)
 	{
 		case SET0:
@@ -135,23 +136,23 @@ void inject_register_fault(fault_list_t * current)
 			break;
 	}
 	write_reg(current->fault.address, reg);
-	g_string_append_printf(out, " to %08x, with mask %08x\n", reg, mask);
+	g_string_append_printf(out, " to %08lx, with mask %08lx\n", reg, mask);
 	qemu_plugin_outs(out->str);
 }
 
 void reverse_register_fault(fault_list_t * current)
 {
 	g_autoptr(GString) out = g_string_new("");
-	uint32_t reg = read_reg(current->fault.address);
+	uint64_t reg = read_reg(current->fault.address);
 
-	g_string_printf(out, " Change register %li back from %08x", current->fault.address, reg);
-	for(int i = 0; i < 4; i++)
+	g_string_printf(out, " Change register %li back from %08lx", current->fault.address, reg);
+	for(int i = 0; i < 8; i++)
 	{
-		reg = reg & ~((uint32_t)current->fault.mask[15-i] << 8*i); // clear manipulated bits
-		reg = reg | ((uint32_t) current->fault.restoremask[i] << 8*i); // restore manipulated bits
+		reg = reg & ~((uint64_t)current->fault.mask[15-i] << 8*i); // clear manipulated bits
+		reg = reg | ((uint64_t) current->fault.restoremask[i] << 8*i); // restore manipulated bits
 	}
 	write_reg(current->fault.address, reg);
-	g_string_printf(out, " to %08x\n", reg);
+	g_string_printf(out, " to %08lx\n", reg);
 	qemu_plugin_outs(out->str);
 }
 
