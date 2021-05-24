@@ -25,7 +25,7 @@
 /**
  * This enum is the internal value for all available architectures supported
  */
-enum architecture {ARM};
+enum architecture {ARM, RISCV};
 
 /**
  * init_register_module

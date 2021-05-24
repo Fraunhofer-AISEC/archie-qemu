@@ -189,7 +189,7 @@ static void memaccess_data_cb(unsigned int vcpu_index, qemu_plugin_meminfo_t inf
 	if(mem_access == NULL)
 	{
 		mem_access = malloc(sizeof(mem_info_t));
-		mem_access->ins_address = userdata;
+		mem_access->ins_address = (uint64_t) userdata;
 		mem_access->size = qemu_plugin_mem_size_shift(info);
 		mem_access->memmory_address = vddr;
 		mem_access->direction = qemu_plugin_mem_is_store(info);
@@ -867,7 +867,7 @@ void handle_tb_translate_data(struct qemu_plugin_tb *tb)
 		for(int i = 0; i < tb->n; i++)
 		{
 			struct qemu_plugin_insn *insn = qemu_plugin_tb_get_insn(tb, i);
-			qemu_plugin_register_vcpu_mem_cb( insn, memaccess_data_cb, QEMU_PLUGIN_CB_RW_REGS, QEMU_PLUGIN_MEM_RW, insn->vaddr);
+			qemu_plugin_register_vcpu_mem_cb( insn, memaccess_data_cb, QEMU_PLUGIN_CB_RW_REGS, QEMU_PLUGIN_MEM_RW, (void *) insn->vaddr);
 		}
 	}
 	// DEBUG
@@ -1131,7 +1131,7 @@ int readout_controll_qemu()
 	return 1;
 }
 
-int initialise_plugin(GString * out, int argc, char **argv)
+int initialise_plugin(GString * out, int argc, char **argv, int architecture)
 {
 	// Global FIFO data structure for control, data and config
 	pipes = NULL;
@@ -1194,7 +1194,7 @@ int initialise_plugin(GString * out, int argc, char **argv)
 	}
 	g_string_append_printf(out, "[Info]: Initialisation of FIFO.......Done!\n");
 	init_memory_module();
-	init_register_module(ARM);
+	init_register_module(architecture);
 	init_singlestep_req();
 	return 0;
 }
@@ -1214,16 +1214,24 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 	g_autoptr(GString) out = g_string_new("");
 	g_string_printf(out, "QEMU Injection Plugin\n Current Target is %s\n", info->target_name);
 	g_string_append_printf(out, "Current Version of QEMU Plugin is %i, Min Version is %i\n", info->version.cur, info->version.min);
-	if(strcmp(info->target_name, "arm") < 0)
+	int valid_architecture = -1;
+	if(strcmp(info->target_name, "arm") == 0)
+	{
+		valid_architecture = ARM;
+	}
+	if(strcmp(info->target_name, "riscv") == 0)
+	{
+		valid_architecture = RISCV;
+	}
+
+	if(valid_architecture == -1)
 	{
 		g_string_append(out, "[ERROR]: Abort plugin, as this architecture is currently not supported!\n");
 		qemu_plugin_outs(out->str);
 		return -1;
 	}
-
-
 	// Initialise all global datastructures and open FIFOs
-	if(initialise_plugin(out, argc, argv) == -1)
+	if(initialise_plugin(out, argc, argv, valid_architecture) == -1)
 	{
 		goto ABORT;
 	}
