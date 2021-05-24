@@ -283,6 +283,25 @@ void print_assembler(struct qemu_plugin_tb *tb)
 }
 
 
+void qemu_setup_config_find_char(GString* out, char c);
+void qemu_setup_config_find_char(GString* out, char c)
+{
+	int i = 0;
+	char *s = out->str;
+
+	
+	while(*s != c)
+	{
+		i++;
+		s++;
+	}
+	i++;
+	g_string_erase(out, 0, i++);
+}
+
+
+void readout_config_pipe(GString *out);
+
 /**
  *
  * qemu_setup_config
@@ -301,77 +320,69 @@ int qemu_setup_config()
 	uint8_t fault_mask[16];
 	uint64_t fault_trigger_address = 0;
 	uint64_t fault_trigger_hitcounter = 0;
-	uint8_t buf[16];
 	uint64_t target_len = 8;
 	uint64_t tmp = 0xffffffffffffffff;
 	g_string_printf(out, "[Info]: Start readout of FIFO\n");
-	for(int i = 0; i < 7; i++)
+	
+	g_autoptr(GString) conf = g_string_new("");
+	int done = 0;
+
+	g_string_printf(conf, " ");
+	
+	while(done == 0)
 	{
-		g_string_append_printf(out, "[Info]: Parameter %i\n", i);
-		//qemu_plugin_outs(out->str);
-		ssize_t readout = 0;
-		ssize_t read_bytes = 0;
-		while(target_len > read_bytes)
+		g_string_printf(conf, " ");
+		readout_config_pipe(conf);
+		if(strstr(conf->str, "$$"))
 		{
-			readout = read(pipes->config, buf + readout, target_len - readout );
-			g_string_append_printf(out, "[DEBUG]: readout %li, target_len %li \n", readout, target_len);
-			if(readout == -1)
+
+			if(strstr(conf->str, "[Fault]"))
 			{
-				g_string_append_printf(out, "[DEBUG]: Value is negative. Something happened in read: %s\n", strerror(errno));
-				g_string_append_printf(out, "[DEBUG]: File descriptor is : %i\n", pipes->config);
-				//qemu_plugin_outs(out->str);
-				//g_string_printf(out, "  \n");
+				done = 0;
 			}
-			else
+			if(strstr(conf->str, "[Fault_Ende]"))
 			{
-				read_bytes += readout;
-				readout = 0;
+				done = 1;
 			}
 		}
-		g_string_append_printf(out, "[Info]: readout of pipe done\n");
-		//qemu_plugin_outs(out->str);
-		switch(i)
+		if(strstr(conf->str, "%"))
 		{
-			case 0:
-				fault_address = char_to_uint64(buf, 8);
-				target_len = 8;
-				g_string_append_printf(out, "[Info]: fault address: 0x%lx\n", fault_address);
-				break;
-			case 1:
-				fault_type = char_to_uint64(buf, 8);
-				target_len = 8;
-				g_string_append_printf(out, "[Info]: fault address: 0x%lx\n", fault_type);
-				break;
-			case 2:
-				fault_model = char_to_uint64(buf, target_len);
-				target_len = 8;
-				g_string_append_printf(out, "[Info]: fault address: 0x%lx\n", fault_model);
-				break;
-			case 3:
-				fault_lifetime = char_to_uint64(buf, target_len);
-				target_len = 16;
-				g_string_append_printf(out, "[Info]: fault address: 0x%lx\n", fault_lifetime);
-				break;
-			case 4:
-				g_string_append(out, "[Info]: fault mask: ");
-				for(int j = 0; j < 16; j++)
-				{
-					fault_mask[j] = buf[j];
-					g_string_append_printf(out, " 0x%x", fault_mask[j]);
-				}
-				g_string_append(out, "\n");
-				target_len = 8;
-				break;
-			case 5:
-				fault_trigger_address = char_to_uint64(buf, target_len);
-				target_len = 8;
-				g_string_append_printf(out, "[Info]: fault address: 0x%lx\n", fault_trigger_address);
-				break;
-			case 6:
-				fault_trigger_hitcounter = char_to_uint64(buf, target_len);
-				target_len = 8;
-				g_string_append_printf(out, "[Info]: fault address: 0x%lx\n", fault_trigger_hitcounter);
-				break;
+			g_string_erase(conf, 0, 1);
+			fault_address = strtoimax(conf->str, NULL, 0);
+			g_string_append_printf(out, "[Info]: fault address: 0x%lx\n", fault_address);
+			qemu_setup_config_find_char(conf, '|');
+			fault_type = strtoimax(conf->str, NULL, 0);
+			g_string_append_printf(out, "[Info]: fault type: 0x%lx\n", fault_type);
+			qemu_setup_config_find_char(conf, '|');
+			fault_model = strtoimax(conf->str, NULL, 0);
+			g_string_append_printf(out, "[Info]: fault model: 0x%lx\n", fault_model);
+			qemu_setup_config_find_char(conf, '|');
+			fault_lifetime = strtoimax(conf->str, NULL, 0);
+			g_string_append_printf(out, "[Info]: fault livetype: 0x%lx\n", fault_lifetime);
+			qemu_setup_config_find_char(conf, '|');
+			fault_trigger_address = strtoimax(conf->str, NULL, 0);
+			g_string_append_printf(out, "[Info]: fault trigger address: 0x%lx\n", fault_trigger_address);
+			qemu_setup_config_find_char(conf, '|');
+			fault_trigger_hitcounter = strtoimax(conf->str, NULL, 0);
+			g_string_append_printf(out, "[Info]: fault trigger hitcounter: 0x%lx\n", fault_trigger_hitcounter);
+			qemu_setup_config_find_char(conf, '|');
+			uint64_t tmp = strtoimax(conf->str, NULL, 0);
+			g_string_erase(conf, 0, 1);
+			qemu_setup_config_find_char(conf, ' ');
+			qemu_setup_config_find_char(conf, ' ');
+			uint64_t tmp2 = strtoimax(conf->str, NULL, 0);
+			g_string_append(out, conf->str);
+			for(int i = 0; i < 8; i++)
+			{
+				fault_mask[i] = (tmp2 >> i * 8) & 0xFF;
+				fault_mask[i+8] = (tmp >> i * 8) & 0xFF;
+				g_string_append_printf(out, " 0x%x", fault_mask[i]);
+			}
+			for(int i = 0; i < 8; i++)
+			{
+				g_string_append_printf(out, " 0x%x", fault_mask[i+8]);
+			}
+			g_string_append(out, "\n");
 		}
 	}
 	g_string_append(out, "[Info]: Fault pipe read done\n");
@@ -943,6 +954,26 @@ static void vcpu_translateblock_translation_event(qemu_plugin_id_t id, struct qe
 	}
 }
 
+void readout_config_pipe(GString *out)
+{
+	char c = ' ';
+	int ret = 0;
+	while(c != '\n')
+	{
+		ret = read(pipes->config, &c, 1);
+		if(ret != 1)
+		{
+			qemu_plugin_outs("[DEBUG]: Readout config, no character found or too much read\n");
+			c = ' ';
+		}
+		else
+		{
+			g_string_append_c(out, c);
+		}
+	}
+}
+
+
 void readout_controll_pipe(GString *out)
 {
 	char c = ' ';
@@ -1219,7 +1250,7 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 	{
 		valid_architecture = ARM;
 	}
-	if(strcmp(info->target_name, "riscv") == 0)
+	if(strcmp(info->target_name, "riscv32") == 0)
 	{
 		valid_architecture = RISCV;
 	}
