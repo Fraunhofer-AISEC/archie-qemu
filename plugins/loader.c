@@ -399,14 +399,23 @@ static int plugin_read_register(CPUState *cpu, GByteArray *buf, int reg)
 uint64_t read_reg(int reg)
 {
 	GByteArray *val = g_byte_array_new();
-	uint8_t byte_reg;
 	uint64_t reg_ret = 0;
 	int ret_bytes = plugin_read_register(current_cpu, val, reg);
-	for(int i = 0; i < ret_bytes; i++)
+	if(ret_bytes == 1)
 	{
-		/* Read out of GbyteArray and build up 32 bit number. Already swapped by request*/
-		byte_reg = val->data[i];
-		reg_ret |= (byte_reg << i*8);
+		reg_ret = val->data[0];
+	}
+	if(ret_bytes == 2)
+	{
+		reg_ret = *(uint16_t *) &(val->data[0]);
+	}
+	if(ret_bytes == 4)
+	{
+		reg_ret = *(uint32_t *) &(val->data[0]);
+	}
+	if(ret_bytes == 8)
+	{
+		reg_ret = *(uint64_t *) &(val->data[0]);
 	}
 	return reg_ret;
 }
