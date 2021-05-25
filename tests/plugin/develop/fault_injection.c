@@ -18,6 +18,7 @@
 
 #include "fault_injection.h"
 #include "faultplugin.h"
+#include "registerdump.h"
 
 #include <qemu/qemu-plugin.h>
 //#include <glib.h>
@@ -60,6 +61,7 @@ void inject_fault(fault_list_t * current)
 		{
 				current->fault.trigger.trignum = register_live_faults_callback(current);
 		}
+		add_new_registerdump(current->fault.trigger.trignum);
 	}
 }
 
@@ -96,6 +98,7 @@ void reverse_fault(fault_list_t * current)
 		}
 	}
 	rem_singlestep_req();
+	add_new_registerdump(current->fault.trigger.trignum);
 }
 
 /**
