@@ -40,6 +40,7 @@
 #include "fault_injection.h"
 #include "tb_info_data_collection.h"
 #include "tb_exec_data_collection.h"
+#include "tb_faulted_collection.h"
 //DEBUG
 #include <errno.h>
 #include <string.h>
@@ -347,7 +348,7 @@ int qemu_setup_config()
 		}
 		if(strstr(conf->str, "%"))
 		{
-			g_string_erase(conf, 0, 1);
+			g_string_erase(conf, 0, 2);
 			fault_address = strtoimax(conf->str, NULL, 0);
 			g_string_append_printf(out, "[Info]: fault address: 0x%lx\n", fault_address);
 			qemu_setup_config_find_char(conf, '|');
@@ -757,7 +758,10 @@ void plugin_end_information_dump()
 		qemu_plugin_outs("[DEBUG]: Start printing to data pipe memorydump\n");
 		readout_all_memorydump();
 	}
-	read_register_module();	
+	qemu_plugin_outs("[DEBUG]: Start printing to data pipe registerdumps\n");
+	read_register_module();
+	qemu_plugin_outs("[DEBUG]: Start printing to data pipe tb faulted\n");
+	dump_tb_faulted_data();
 	qemu_plugin_outs("[DEBUG]: Information now in pipe, start deleting information in memory\n");
 	qemu_plugin_outs("[DEBUG]: Delete tb_info\n");
 	tb_info_free();
@@ -767,6 +771,8 @@ void plugin_end_information_dump()
 	mem_info_free();
 	qemu_plugin_outs("[DEBUG]: Delete memorydump\n");
 	delete_memory_dump();
+	qemu_plugin_outs("[DEBUG]: Delete tb_faulted\n");
+	tb_faulted_free();
 	qemu_plugin_outs("[DEBUG]: Finished\n");
 	plugin_write_to_data_pipe("$$$[END]\n", 9);
 	//Stop Qemu executing
@@ -922,6 +928,7 @@ static void vcpu_translateblock_translation_event(qemu_plugin_id_t id, struct qe
 		}
 		qemu_plugin_outs(out->str);
 		handle_tb_translate_data(tb);
+		check_tb_faulted(tb);
 		if(end_point.trignum == 3)
 		{
 			size_t tb_size = calculate_bytesize_instructions(tb);
@@ -1276,7 +1283,7 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 		goto ABORT;
 	}
 	g_string_append_printf(out, "[Info]: Linked list entry address: %p\n", return_first_fault());	
-
+	tb_faulted_init(fault_number);	
 	g_string_append_printf(out, "[Info]: Register fault trigger addresses\n");
 	qemu_plugin_outs(out->str);
 	g_string_printf(out, " ");
@@ -1313,6 +1320,7 @@ ABORT:
 	tb_info_free();
 	delete_fault_trigger_addresses();
 	delete_fault_queue();
+	tb_faulted_free();
 	g_string_append(out, "[ERROR]: Something went wrong. Aborting now!\n");
 	qemu_plugin_outs(out->str);
 	return -1;

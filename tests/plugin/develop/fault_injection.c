@@ -19,6 +19,7 @@
 #include "fault_injection.h"
 #include "faultplugin.h"
 #include "registerdump.h"
+#include "tb_faulted_collection.h"
 
 #include <qemu/qemu-plugin.h>
 //#include <glib.h>
@@ -37,6 +38,7 @@ void inject_fault(fault_list_t * current)
 	{
 		if(current->fault.type == FLASH)
 		{
+			tb_faulted_register(current->fault.address);
 			qemu_plugin_outs("[Fault] Inject flash fault\n");
 			inject_memory_fault( current);
 			plugin_flush_tb();
