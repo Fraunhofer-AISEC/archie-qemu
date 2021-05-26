@@ -65,7 +65,6 @@ void delete_memory_dump(void);
  * insert_memorydump_config
  *
  * Initialise one vector element with the memory region, that should be read. 
- * Currently we only read at the end of execution.
  *
  * @param baseaddress: Baseaddress of memory region
  * @param len: length of memory region in bytes
@@ -77,7 +76,17 @@ int insert_memorydump_config(uint64_t baseaddress, uint64_t len);
  *
  * Read all client memory regions defined by user.
  */
-int read_all_memory(void);
+void read_all_memory(void);
+
+
+/**
+ * read_specific_memoryregion
+ *
+ * Read a specific memory region as defined by baseaddress
+ *
+ * @param baseaddress: the start location provided by insert_memory_dump_config
+ */
+void read_specific_memoryregion(uint64_t baseaddress);
 
 /**
  * read_memoryregion

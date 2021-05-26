@@ -38,7 +38,7 @@ void init_memory_module(void)
 {
 	memdump = NULL;
 	num_memdump = 0;
-	used_memdump;
+	used_memdump = 0;
 }
 
 int memory_module_configured(void)
@@ -115,10 +115,36 @@ void delete_memory_dump(void)
 int insert_memorydump_config(uint64_t baseaddress, uint64_t len)
 {	
 	g_autoptr(GString) out = g_string_new("");
+	if(memdump == NULL)
+	{
+		qemu_plugin_outs("[ERROR]: Memorydump: Not initialised!\n");
+		return -1;
+	}
 	if(num_memdump == used_memdump)
 	{
-		qemu_plugin_outs("[ERROR]: No memorydump config free!\n");
-		return -1;
+		qemu_plugin_outs("[DEBUG]: memorydump: Increase memory dump vector.........");
+		memorydump_t **buf = malloc(sizeof(memorydump_t *) * (num_memdump + 1));
+		if(buf == NULL)
+		{
+			qemu_plugin_outs("failed\n[ERROR]: Could not increase memorydump vector! Malloc failed\n");
+			return -1;
+		}
+		for(int i = 0; i < num_memdump; i++)
+		{
+			*(buf + i) = *(memdump + i);
+		}
+		free(memdump);
+		memdump = NULL;
+		memdump = buf;
+		*(memdump + num_memdump) = malloc(sizeof(memorydump_t));
+		memorydump_t *tmp = *(memdump + num_memdump);
+		tmp->buf = NULL;
+		tmp->address = 0;
+		tmp->len = 0;
+                tmp->num_dumps = 0;
+                tmp->used_dumps = 0;
+		num_memdump++;
+		qemu_plugin_outs("done\n");
 	}
 	memorydump_t *tmp = *(memdump + used_memdump);
 	used_memdump++;
@@ -126,6 +152,12 @@ int insert_memorydump_config(uint64_t baseaddress, uint64_t len)
 	tmp->len = len;
 	tmp->num_dumps = 1;
 	tmp->buf = malloc(sizeof(uint8_t*) * tmp->num_dumps);
+	if(tmp->buf == NULL)
+	{
+		qemu_plugin_outs("[ERROR]: Could not allocate memory vor buffer!\n");
+		tmp->address = 0;
+		return -1;
+	}
 	for(int j = 0; j < tmp->num_dumps; j++)
 	{
 		*(tmp->buf + j)  = malloc(sizeof(uint8_t) * len);
@@ -134,16 +166,28 @@ int insert_memorydump_config(uint64_t baseaddress, uint64_t len)
 			*(*(tmp->buf + j) + i) = 0;
 		}
 	}
-	g_string_printf(out,"[DEBUG]: Config was address %08lx len %li\n", baseaddress, len);
+	g_string_printf(out,"[DEBUG]: Memorydump: config was address %08lx len %li\n", baseaddress, len);
 	qemu_plugin_outs(out->str);
 	return 1;
 }
 
-int read_all_memory(void)
+void read_all_memory(void)
 {
 	for(int i = 0; i < used_memdump; i++)
 	{
 		read_memoryregion( i);
+	}
+}
+
+void read_specific_memoryregion(uint64_t baseaddress)
+{
+	for(int i = 0; i < used_memdump; i++)
+	{
+		memorydump_t *current = *(memdump + i);
+		if(current->address == baseaddress)
+		{
+			read_memoryregion(i);
+		}
 	}
 }
 
@@ -154,8 +198,33 @@ int read_memoryregion(uint64_t memorydump_position)
 	memorydump_t *current = *(memdump + memorydump_position);
 	if(current->num_dumps == current->used_dumps)
 	{
-		qemu_plugin_outs("[ERROR]: No free memory dump region available!\n");
-		return -1;
+		qemu_plugin_outs("[DEBUG]: Memorydump: Allocate new buffer......");
+		//We need to add a new memory dump arrea
+		uint8_t **buf = malloc(sizeof(uint8_t *) * (current->num_dumps + 1));
+		if(buf == NULL)
+		{
+			qemu_plugin_outs("failed\n[ERROR]: Could not create new buffer vector for memory region! Malloc error\n");
+			return -1;
+		}
+		for(int i = 0; i < current->num_dumps; i++)
+		{
+			*(buf + i) = *(current->buf + i);
+		}
+		*(buf + current->num_dumps) = malloc(sizeof(uint8_t) * current->len);
+		if(*(buf + current->num_dumps) == NULL)
+		{
+			qemu_plugin_outs("failed\n[ERROR]: Could not create buffer! Malloc Error\n");
+			free(buf);
+			return -1;
+		}
+		for( int i = 0; i < current->len; i++)
+		{
+			*(*(buf + current->num_dumps) + i) = 0;
+		}
+		free(current->buf);
+		current->buf = buf;
+		current->num_dumps++;
+		qemu_plugin_outs("done\n");
 	}
 	qemu_plugin_outs("[DEBUG]: start reading memory memdump");
 	ret = plugin_rw_memory_cpu( current->address, *(current->buf + current->used_dumps), current->len, 0);
