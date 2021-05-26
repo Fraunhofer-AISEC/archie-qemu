@@ -20,6 +20,7 @@
 #include "faultplugin.h"
 #include "registerdump.h"
 #include "tb_faulted_collection.h"
+#include "faultdata.h"
 
 #include <qemu/qemu-plugin.h>
 //#include <glib.h>
@@ -38,17 +39,23 @@ void inject_fault(fault_list_t * current)
 	{
 		if(current->fault.type == FLASH)
 		{
+			insert_memorydump_config(current->fault.address, 16);
+			read_specific_memoryregion(current->fault.address);
 			tb_faulted_register(current->fault.address);
 			qemu_plugin_outs("[Fault] Inject flash fault\n");
 			inject_memory_fault( current);
 			plugin_flush_tb();
+			read_specific_memoryregion(current->fault.address);
 			qemu_plugin_outs("Flushed tb\n");
 		}
 		if(current->fault.type == SRAM)
 		{
+			insert_memorydump_config(current->fault.address, 16);
+			read_specific_memoryregion(current->fault.address);
 			qemu_plugin_outs("[Fault] Inject sram fault\n");
 			inject_memory_fault( current);
 			plugin_flush_tb();
+			read_specific_memoryregion(current->fault.address);
 			qemu_plugin_outs("Flushed tb\n");
 		}
 		if(current->fault.type == REGISTER)
@@ -84,13 +91,15 @@ void reverse_fault(fault_list_t * current)
 			qemu_plugin_outs("[Fault] Reverse flash fault\n");
 			process_reverse_fault(current->fault.address, current->fault.mask, current->fault.restoremask);
 			plugin_flush_tb();
+			read_specific_memoryregion(current->fault.address);
 			qemu_plugin_outs("Flushed tb\n");
 		}
 		if(current->fault.type == SRAM)
 		{
-			qemu_plugin_outs("[Fault] Reverse flash fault\n");
+			qemu_plugin_outs("[Fault] Reverse sram fault\n");
 			process_reverse_fault(current->fault.address, current->fault.mask, current->fault.restoremask);
 			plugin_flush_tb();
+			read_specific_memoryregion(current->fault.address);
 			qemu_plugin_outs("Flushed tb\n");
 		}
 		if(current->fault.type == REGISTER)
