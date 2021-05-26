@@ -154,8 +154,11 @@ void dump_tb_faulted_data(void)
 	tb_faulted_t *item = tb_faulted_list;
 	while(item != NULL)
 	{
-		g_string_printf(out, "$$0x%lx | %s \n", item->trigger_address, item->assembler->str);
-		plugin_write_to_data_pipe(out->str, out->len);
+		if(item->assembler != NULL)
+		{
+			g_string_printf(out, "$$0x%lx | %s \n", item->trigger_address, item->assembler->str);
+			plugin_write_to_data_pipe(out->str, out->len);
+		}
 		item = item->next;
 	}
 }
