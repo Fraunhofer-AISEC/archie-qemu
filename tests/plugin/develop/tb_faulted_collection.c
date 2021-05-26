@@ -41,7 +41,7 @@ int 	done_triggers;
  *
  * get needed list element and add assembly to it
  */
-void insert_faulted_assembly(struct qemu_plugin_tb *tb, int trigger_address);
+void insert_faulted_assembly(struct qemu_plugin_tb *tb, uint64_t trigger_address);
 
 void tb_faulted_init(int number_faults)
 {
@@ -75,7 +75,7 @@ void tb_faulted_free(void)
 	done_triggers = 0;
 }
 
-void insert_faulted_assembly(struct qemu_plugin_tb *tb, int trigger_address)
+void insert_faulted_assembly(struct qemu_plugin_tb *tb, uint64_t trigger_address)
 {
 	tb_faulted_t *item = tb_faulted_list;
 	while(item != NULL)
@@ -88,7 +88,10 @@ void insert_faulted_assembly(struct qemu_plugin_tb *tb, int trigger_address)
 	}
 	if(item == NULL)
 	{
+		g_autoptr(GString) out = g_string_new("");
+		g_string_append_printf(out, "[TBFaulted]: %lx\n", trigger_address);
 		qemu_plugin_outs("[TBFaulted]: Found no fault to be assembled!\n");
+		qemu_plugin_outs(out->str);
 		return;
 	}
 	rem_singlestep_req();
@@ -102,7 +105,10 @@ void tb_faulted_register(uint64_t fault_address)
 		qemu_plugin_outs("[TBFaulted]: Registered tb faulted failed\n");
 		return;
 	}
+	g_autoptr(GString) out = g_string_new("");
+	g_string_printf(out, "[TBFaulted]: %lx\n", fault_address);
 	qemu_plugin_outs("[TBFaulted]: Registered tb faulted to be saved\n");
+	qemu_plugin_outs(out->str);
 	add_singlestep_req();
 	tb_faulted_t *item = malloc(sizeof(tb_faulted_t));
 	item->trigger_address = fault_address;
@@ -124,7 +130,10 @@ void check_tb_faulted(struct qemu_plugin_tb *tb)
 	{
 		if((*(active_triggers + i) >= tb->vaddr) && (*(active_triggers + i) <= tb->vaddr + tb_size) )
 		{
+			g_autoptr(GString) out = g_string_new("");
+			g_string_printf(out, "[TBFaulted]: %lx\n", *(active_triggers + i));
 			qemu_plugin_outs("[TBFaulted]: Found tb faulted to be saved\n");
+			qemu_plugin_outs(out->str);
 			insert_faulted_assembly(tb, *(active_triggers + i));
 			*(active_triggers + i) = 0xdeadbeaf;
 			done_triggers++;
