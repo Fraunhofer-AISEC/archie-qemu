@@ -1157,6 +1157,10 @@ int readout_controll_qemu()
 		}
 
 	}
+	if(memory_module_configured() == 0)
+	{
+		init_memory(1);
+	}
 	qemu_plugin_outs("[DEBUG]: Finished readout control. Now start readout of config\n");
 	for(int i = 0; i < fault_number; i++)
 	{
