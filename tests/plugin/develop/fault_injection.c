@@ -37,22 +37,22 @@ void inject_fault(fault_list_t * current)
 	g_autoptr(GString) out = g_string_new("");
 	if( current != NULL)
 	{
-		if(current->fault.type == FLASH)
+		if(current->fault.type == INSTRUCTION)
 		{
 			insert_memorydump_config(current->fault.address, 16);
 			read_specific_memoryregion(current->fault.address);
 			tb_faulted_register(current->fault.address);
-			qemu_plugin_outs("[Fault] Inject flash fault\n");
+			qemu_plugin_outs("[Fault] Inject instruction fault\n");
 			inject_memory_fault( current);
 			plugin_flush_tb();
 			read_specific_memoryregion(current->fault.address);
 			qemu_plugin_outs("Flushed tb\n");
 		}
-		if(current->fault.type == SRAM)
+		if(current->fault.type == MEMORY)
 		{
 			insert_memorydump_config(current->fault.address, 16);
 			read_specific_memoryregion(current->fault.address);
-			qemu_plugin_outs("[Fault] Inject sram fault\n");
+			qemu_plugin_outs("[Fault] Inject memory fault\n");
 			inject_memory_fault( current);
 			plugin_flush_tb();
 			read_specific_memoryregion(current->fault.address);
@@ -86,17 +86,17 @@ void reverse_fault(fault_list_t * current)
 	g_autoptr(GString) out = g_string_new("");
 	if(current != NULL)
 	{
-		if(current->fault.type == FLASH)
+		if(current->fault.type == INSTRUCTION)
 		{
-			qemu_plugin_outs("[Fault] Reverse flash fault\n");
+			qemu_plugin_outs("[Fault] Reverse instruction fault\n");
 			process_reverse_fault(current->fault.address, current->fault.mask, current->fault.restoremask);
 			plugin_flush_tb();
 			read_specific_memoryregion(current->fault.address);
 			qemu_plugin_outs("Flushed tb\n");
 		}
-		if(current->fault.type == SRAM)
+		if(current->fault.type == MEMORY)
 		{
-			qemu_plugin_outs("[Fault] Reverse sram fault\n");
+			qemu_plugin_outs("[Fault] Reverse memory fault\n");
 			process_reverse_fault(current->fault.address, current->fault.mask, current->fault.restoremask);
 			plugin_flush_tb();
 			read_specific_memoryregion(current->fault.address);

@@ -503,7 +503,7 @@ void handle_first_tb_fault_insertion()
 	g_string_printf(out, " ");
 	while(current != NULL)
 	{
-		if(current->fault.trigger.hitcounter == 0 && current->fault.type == FLASH )
+		if(current->fault.trigger.hitcounter == 0 && current->fault.type == INSTRUCTION )
 		{
 			add_singlestep_req(); // force singlestep mode for compatibility
 			qemu_plugin_outs("Insert first fault\n");

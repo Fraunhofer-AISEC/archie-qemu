@@ -24,7 +24,7 @@
 #include <glib.h>
 #include "fault_list.h"
 
-enum{ SRAM, FLASH, REGISTER};
+enum{ MEMORY, INSTRUCTION, REGISTER};
 enum{ SET0, SET1, TOGGLE};
 
 
