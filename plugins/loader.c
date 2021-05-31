@@ -362,8 +362,6 @@ static void plugin_flush_destroy(CPUState *cpu, run_on_cpu_data arg)
     plugin_reset_destroy(data);
 }
 
-
-
 void plugin_reset_uninstall(qemu_plugin_id_t id,
                             qemu_plugin_simple_cb_t cb,
                             bool reset)
