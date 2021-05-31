@@ -5,6 +5,7 @@
 obj-y += loader.o
 obj-y += core.o
 obj-y += api.o
+obj-y += readwriteextension.o
 
 # Abuse -libs suffix to only link with --dynamic-list/-exported_symbols_list
 # when the final binary includes the plugin object.
