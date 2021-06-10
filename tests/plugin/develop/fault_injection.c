@@ -48,7 +48,7 @@ void inject_fault(fault_list_t * current)
 			read_specific_memoryregion(current->fault.address);
 			qemu_plugin_outs("Flushed tb\n");
 		}
-		if(current->fault.type == MEMORY)
+		if(current->fault.type == DATA)
 		{
 			insert_memorydump_config(current->fault.address, 16);
 			read_specific_memoryregion(current->fault.address);
@@ -94,7 +94,7 @@ void reverse_fault(fault_list_t * current)
 			read_specific_memoryregion(current->fault.address);
 			qemu_plugin_outs("Flushed tb\n");
 		}
-		if(current->fault.type == MEMORY)
+		if(current->fault.type == DATA)
 		{
 			qemu_plugin_outs("[Fault] Reverse memory fault\n");
 			process_reverse_fault(current->fault.address, current->fault.mask, current->fault.restoremask);
