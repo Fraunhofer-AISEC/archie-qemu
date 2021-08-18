@@ -80,7 +80,14 @@ void plugin_dump_tb_exec_order()
 	i = 0;
 	while(item != NULL)
 	{
-		g_string_printf(out, "$$ 0x%lx | %li \n", item->tb_info->base_address, i);
+		if(item->tb_info == NULL)
+		{
+			g_string_printf(out, "$$ 0x0000 | %li \n", i);
+		}
+		else
+		{
+			g_string_printf(out, "$$ 0x%lx | %li \n", item->tb_info->base_address, i);
+		}
 		plugin_write_to_data_pipe(out->str, out->len);
 		item = item->next;
 		i++;
