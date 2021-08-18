@@ -594,7 +594,7 @@ uint64_t read_reg(int reg);
 void write_reg(int reg, uint64_t val);
 
 /**
- * plugin_flush_tb() - Flush the tb cach
+ * plugin_flush_tb() - Flush the tb cache
  */
 void plugin_flush_tb(void);
 
@@ -607,6 +607,9 @@ void plugin_flush_tb(void);
  */
 int plugin_rw_memory_cpu(uint64_t address, uint8_t buffer[], size_t buf_size, char write);
 
+/**
+ * plugin_single_step() - Function to change single step behaviour from the plugin.
+ */
 void plugin_single_step(int enable);
 
 #endif /* QEMU_PLUGIN_API_H */
