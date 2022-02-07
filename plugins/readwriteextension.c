@@ -17,8 +17,6 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-
-
 #include "qemu/osdep.h"
 #include "qemu/plugin.h"
 #include "hw/core/cpu.h"
@@ -27,23 +25,19 @@
 
 extern bool one_insn_per_tb;
 
-void plugin_async_flush_tb(CPUState *cpu, run_on_cpu_data arg);
-void plugin_async_flush_tb(CPUState *cpu, run_on_cpu_data arg)
+static void plugin_async_flush_tb(CPUState *cpu, run_on_cpu_data arg)
 {
     g_assert(cpu_in_exclusive_context(cpu));
     tb_flush(cpu);
 }
 
-
-
-int plugin_rw_memory_cpu(uint64_t address, uint8_t buffer[], size_t buf_size, char write)
+int qemu_plugin_rw_memory_cpu(uint64_t address, uint8_t buffer[],
+                              size_t buf_size, char write)
 {
     return cpu_memory_rw_debug(current_cpu, address, buffer, buf_size, write);
-
 }
 
-
-void plugin_flush_tb(void)
+void qemu_plugin_flush_tb(void)
 {
     async_safe_run_on_cpu(current_cpu, plugin_async_flush_tb, RUN_ON_CPU_NULL);
 }
@@ -57,7 +51,7 @@ static int plugin_read_register(CPUState *cpu, GByteArray *buf, int reg)
     return 0;
 }
 
-uint64_t read_reg(int reg)
+uint64_t qemu_plugin_read_reg(int reg)
 {
     GByteArray *val = g_byte_array_new();
     uint64_t reg_ret = 0;
@@ -77,7 +71,7 @@ uint64_t read_reg(int reg)
     return reg_ret;
 }
 
-void write_reg(int reg, uint64_t val)
+void qemu_plugin_write_reg(int reg, uint64_t val)
 {
     CPUState *cpu = current_cpu;
     CPUClass *cc = CPU_GET_CLASS(cpu);
@@ -87,7 +81,7 @@ void write_reg(int reg, uint64_t val)
     }
 }
 
-void plugin_single_step(int enable)
+void qemu_plugin_single_step(int enable)
 {
     /* one_insn_per_tb is set in accel/tcg/tcg-all.c */
     static bool orig_value;
