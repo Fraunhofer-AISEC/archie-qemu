@@ -1037,6 +1037,9 @@ QEMU_PLUGIN_API
 int qemu_plugin_rw_memory_cpu(uint64_t address, uint8_t buffer[],
                               size_t buf_size, char write);
 
+QEMU_PLUGIN_API
+void* qemu_plugin_get_address_space(void);
+
 /**
  * qemu_plugin_single_step() - Function to change single step behaviour from the
  *                             plugin.
