@@ -29,6 +29,7 @@
 #include "tcg/tcg-op.h"
 #include "plugin.h"
 #include "qemu/compiler.h"
+#include "exec/address-spaces.h"
 
 struct qemu_plugin_cb {
     struct qemu_plugin_ctx *ctx;
@@ -543,6 +544,10 @@ void qemu_plugin_user_postfork(bool is_child)
     } else {
         qemu_rec_mutex_unlock(&plugin.lock);
     }
+}
+
+void* qemu_plugin_get_address_space(void) {
+    return (void*)&address_space_memory;
 }
 
 

@@ -47,4 +47,5 @@
   qemu_plugin_uninstall;
   qemu_plugin_vcpu_for_each;
   qemu_plugin_write_reg;
+  qemu_plugin_get_address_space;
 };
