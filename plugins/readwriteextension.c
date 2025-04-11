@@ -22,6 +22,7 @@
 #include "hw/core/cpu.h"
 #include "exec/tb-flush.h"
 #include "exec/cpu-common.h"
+#include "exec/gdbstub.h"
 
 extern bool one_insn_per_tb;
 
@@ -42,20 +43,11 @@ void qemu_plugin_flush_tb(void)
     async_safe_run_on_cpu(current_cpu, plugin_async_flush_tb, RUN_ON_CPU_NULL);
 }
 
-static int plugin_read_register(CPUState *cpu, GByteArray *buf, int reg)
-{
-    CPUClass *cc = CPU_GET_CLASS(cpu);
-    if (reg < cc->gdb_num_core_regs) {
-        return cc->gdb_read_register(cpu, buf, reg);
-    }
-    return 0;
-}
-
 uint64_t qemu_plugin_read_reg(int reg)
 {
     GByteArray *val = g_byte_array_new();
     uint64_t reg_ret = 0;
-    int ret_bytes = plugin_read_register(current_cpu, val, reg);
+    int ret_bytes = gdb_read_register(current_cpu, val, reg);
     if (ret_bytes == 1) {
         reg_ret = val->data[0];
     }
@@ -73,12 +65,7 @@ uint64_t qemu_plugin_read_reg(int reg)
 
 void qemu_plugin_write_reg(int reg, uint64_t val)
 {
-    CPUState *cpu = current_cpu;
-    CPUClass *cc = CPU_GET_CLASS(cpu);
-
-    if (reg < cc->gdb_num_core_regs) {
-        cc->gdb_write_register(cpu, (uint8_t *) &val, reg);
-    }
+    gdb_write_register(current_cpu, (uint8_t *) &val, reg);
 }
 
 void qemu_plugin_single_step(int enable)
